@@ -5,10 +5,10 @@
 ## Scope
 
 - DynamoDB watermark table, one item per source and data type
-- Lambda re-fetches a rolling lookback (72 hours to start, configurable per data type) up to now, writes raw JSON, and records the run time and newest data point in the watermark (ADR 0002)
+- Lambda re-fetches a rolling lookback (72 hours to start, configurable per data type) up to now, writes raw JSON, and records the run time and newest data point in the watermark (D2)
 - Exponential backoff on 429/5xx; reserved concurrency 1
 - Historical backfill mode: last 30 days only, day by day, slow pace
-- Error alarm for the Lambda and a daily 24-hour freshness check, to SNS email; 14-day log retention (ADR 0007)
+- Error alarm for the Lambda and a daily 24-hour freshness check, to SNS email; 14-day log retention (D7)
 - Shared helpers in src/common/ (S3 writer, watermark, HTTP retry) with unit tests
 
 ## Done when

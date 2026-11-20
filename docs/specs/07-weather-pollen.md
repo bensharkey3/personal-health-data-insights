@@ -4,7 +4,7 @@
 
 ## Scope
 
-- Choose free weather and pollen APIs for my home location (set in SSM/config, never in this repo; document the choice as an ADR)
+- Choose free weather and pollen APIs for my home location (set in SSM/config, never in this repo; record the choice in docs/decisions.md)
 - EventBridge-scheduled Lambda, daily (or hourly for weather), raw JSON to S3
 - Iceberg tables for weather and pollen
 

@@ -1,6 +1,6 @@
 # Architecture
 
-Single-user serverless pipeline on AWS. The why behind each choice is in [decisions/](decisions/).
+Single-user serverless pipeline on AWS. The reasons are in [decisions.md](decisions.md).
 
 ```
 Fitbit (Google Health) ─webhook─┐
@@ -9,17 +9,17 @@ Weather/pollen ──schedule───────┘                           
                                        Dashboard + AI summary (CloudFront) ◀─ Morning chain ┘
 ```
 
-| Layer | What | ADR |
+| Layer | What | Decision |
 | --- | --- | --- |
-| Ingest | Rolling 72h re-fetch; DynamoDB watermark; backoff, concurrency 1 | 0002 |
-| Raw | S3 `raw/<source>/<data_type>/dt=YYYY-MM-DD/` (UTC), immutable, encrypted, versioned | 0001 |
-| Curated | Iceberg table per data type, monthly partitions, `local_date` column, `MERGE INTO` dedupe | 0003, 0005 |
-| Maintenance | Weekly Athena `OPTIMIZE` / `VACUUM` | 0005 |
+| Ingest | Rolling 72h re-fetch; DynamoDB watermark; backoff, concurrency 1 | D2 |
+| Raw | S3 `raw/<source>/<data_type>/dt=YYYY-MM-DD/` (UTC), immutable, encrypted, versioned | D1 |
+| Curated | Iceberg table per data type, monthly partitions, `local_date` column, `MERGE INTO` dedupe | D3, D5 |
+| Maintenance | Weekly Athena `OPTIMIZE` / `VACUUM` | D5 |
 | Morning chain | Step Functions: merge day → metrics vs 30-day baseline → Bedrock summary → static HTML | |
-| Serving | S3 + CloudFront; CloudFront Function auth, then Cognito in step 09 | 0004 |
-| Infra / CI | Terraform (CloudShell bootstrap, then GitHub Actions + OIDC); zips + DuckDB layer | 0006, 0010 |
-| Ops | Error + freshness alarms, $2 budget, 14-day logs; keep data indefinitely | 0007, 0009 |
-| Region | `ap-southeast-2` (+ `us-east-1` for CloudFront) | 0008 |
+| Serving | S3 + CloudFront; CloudFront Function auth, then Cognito in step 09 | D4 |
+| Infra / CI | Terraform (CloudShell bootstrap, then GitHub Actions + OIDC); zips + DuckDB layer | D6, D10 |
+| Ops | Error + freshness alarms, $2 budget, 14-day logs; keep data indefinitely | D7, D9 |
+| Region | `ap-southeast-2` (+ `us-east-1` for CloudFront) | D8 |
 
 ## Open questions
 
