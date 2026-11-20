@@ -14,3 +14,9 @@ variable "stack_prefix" {
   type        = string
   default     = "phdi"
 }
+
+variable "github_sub_immutable" {
+  description = "Immutable OIDC subject prefix for the repo (gh api repos/<repo>/actions/oidc/customization/sub)"
+  type        = string
+  default     = "repo:bensharkey3@22268825/personal-health-data-insights@1464758419"
+}
