@@ -14,9 +14,18 @@ What we learnt from `src/ingest/google_health/poc.py`, probe scripts run against
 
 The history from my old Fitbit runs from October 2024 until it was lost in October 2026 (D11). "Continues" means new data still arrives from the phone. "Fitbit Air" says whether the planned device should supply it, from third-party spec sites ([SensorSpecs](https://sensorspecs.fyi/device/google-fitbit-air), [Gadgets & Wearables](https://gadgetsandwearables.com/technical-specs/fitbit-air/)); Google's own [spec page](https://store.google.com/us/product/google_fitbit_air_specs?hl=en-US) couldn't be read, so treat it as likely, not confirmed.
 
+**Core metrics** (bold in the table) are the ones that matter most for this project. All continue on the Fitbit Air; only steps continues on the phone meanwhile:
+
+- Heart: `heart-rate`, `daily-resting-heart-rate`
+- HRV: `heart-rate-variability`, `daily-heart-rate-variability`
+- Sleep: `sleep`
+- SpO2: `oxygen-saturation`, `daily-oxygen-saturation`
+- Temperature: `daily-sleep-temperature-derivations`
+- Steps: `steps`
+
 | Type ID | Shape | Main fields | Continues? | Fitbit Air |
 | --- | --- | --- | --- | --- |
-| `steps` | interval | `count` | Yes (phone) | Yes |
+| **`steps`** | interval | `count` | Yes (phone) | Yes |
 | `distance` | interval | distance | Yes (phone) | Yes |
 | `active-minutes` | interval | active minutes | Yes | Yes |
 | `activity-level` | interval | activity level | Yes | Yes |
@@ -24,18 +33,18 @@ The history from my old Fitbit runs from October 2024 until it was lost in Octob
 | `active-zone-minutes` | interval | active zone minutes | No | Very likely (calculated from heart rate; not listed) |
 | `sedentary-period` | interval | sedentary period | No | Yes |
 | `exercise` | session | workout details | No | Yes (auto-detected) |
-| `heart-rate` | sample (every few seconds) | bpm | No | Yes (every 2 s) |
-| `daily-resting-heart-rate` | daily | `beatsPerMinute`, calculation method | No | Yes |
-| `heart-rate-variability` | sample (during sleep) | RMSSD ms, high/low-frequency power | No | Yes |
-| `daily-heart-rate-variability` | daily | average HRV ms, deep-sleep RMSSD, non-REM heart rate, entropy | No | Yes |
+| **`heart-rate`** | sample (every few seconds) | bpm | No | Yes (every 2 s) |
+| **`daily-resting-heart-rate`** | daily | `beatsPerMinute`, calculation method | No | Yes |
+| **`heart-rate-variability`** | sample (during sleep) | RMSSD ms, high/low-frequency power | No | Yes |
+| **`daily-heart-rate-variability`** | daily | average HRV ms, deep-sleep RMSSD, non-REM heart rate, entropy | No | Yes |
 | `time-in-heart-rate-zone` | interval | time per zone | No | Yes |
 | `daily-heart-rate-zones` | daily | zone thresholds | No | Yes |
-| `oxygen-saturation` | sample (overnight) | SpO2 | No | Yes |
-| `daily-oxygen-saturation` | daily | SpO2 | No | Yes |
+| **`oxygen-saturation`** | sample (overnight) | SpO2 | No | Yes |
+| **`daily-oxygen-saturation`** | daily | SpO2 | No | Yes |
 | `daily-respiratory-rate` | daily | breathing rate | No | Yes |
 | `respiratory-rate-sleep-summary` | sample | breathing rate during sleep | No | Yes |
-| `daily-sleep-temperature-derivations` | daily | nightly skin temperature °C, baseline, 30-day std dev | No | Yes |
-| `sleep` | session | interval, stage timeline, stage summary (minutes and count), minutes asleep/awake/to fall asleep, short awakenings, main-sleep flag | No | Yes (stages) |
+| **`daily-sleep-temperature-derivations`** | daily | nightly skin temperature °C, baseline, 30-day std dev | No | Yes |
+| **`sleep`** | session | interval, stage timeline, stage summary (minutes and count), minutes asleep/awake/to fall asleep, short awakenings, main-sleep flag | No | Yes (stages) |
 | `total-calories`, `calories-in-heart-rate-zone` | rollUp only | calories per window | Yes | Yes |
 | `floors` | rollUp only | floors climbed | No | **No** (no barometric altimeter) |
 | `altitude` | interval | altitude | No | **No** (no altimeter; may come from phone GPS during workouts) |
