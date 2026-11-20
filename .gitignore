@@ -1,0 +1,17 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+
+# Terraform
+.terraform/
+*.tfstate*
+*.tfvars
+*.tfplan
+
+# Secrets and personal data: never commit
+.env*
+client_secret*.json
+token.json
