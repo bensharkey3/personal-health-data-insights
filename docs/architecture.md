@@ -5,7 +5,7 @@ Single-user serverless pipeline on AWS. The reasons are in [decisions.md](decisi
 ```
 Fitbit (Google Health) ─webhook─┐
 Tasker (phone) ──function URL───┼─▶ Ingest Lambdas ─▶ S3 raw JSON ─▶ DuckDB transform ─▶ Iceberg (Glue)
-Weather/pollen ──schedule───────┘                                                          │
+Weather ──schedule──────────────┘                                                          │
                                        Dashboard + AI summary (CloudFront) ◀─ Morning chain ┘
 ```
 
@@ -23,5 +23,4 @@ Weather/pollen ──schedule───────┘                           
 
 ## Open questions
 
-- Step 07: pollen source for the home location (Open-Meteo pollen is Europe-only).
 - Step 08: timed fallback if no sleep data arrives; summary delivery channel; what data goes to Bedrock.
