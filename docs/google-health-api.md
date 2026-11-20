@@ -20,6 +20,7 @@ The history from my old Fitbit runs from October 2024 until it was lost in Octob
 - HRV: `heart-rate-variability`, `daily-heart-rate-variability`
 - Sleep: `sleep`
 - SpO2: `oxygen-saturation`, `daily-oxygen-saturation`
+- Respiratory rate: `daily-respiratory-rate`, `respiratory-rate-sleep-summary`
 - Temperature: `daily-sleep-temperature-derivations`
 - Steps: `steps`
 
@@ -41,8 +42,8 @@ The history from my old Fitbit runs from October 2024 until it was lost in Octob
 | `daily-heart-rate-zones` | No | daily | zone thresholds | No | Yes |
 | `oxygen-saturation` | Yes | sample (overnight) | SpO2 | No | Yes |
 | `daily-oxygen-saturation` | Yes | daily | SpO2 | No | Yes |
-| `daily-respiratory-rate` | No | daily | breathing rate | No | Yes |
-| `respiratory-rate-sleep-summary` | No | sample | breathing rate during sleep | No | Yes |
+| `daily-respiratory-rate` | Yes | daily | breaths per minute during sleep | No | Yes |
+| `respiratory-rate-sleep-summary` | Yes | sample (1 per night) | breaths per minute, std dev and signal-to-noise for deep, light, REM and full sleep | No | Yes |
 | `daily-sleep-temperature-derivations` | Yes | daily | nightly skin temperature °C, baseline, 30-day std dev | No | Yes |
 | `sleep` | Yes | session | interval, stage timeline, stage summary (minutes and count), minutes asleep/awake/to fall asleep, short awakenings, main-sleep flag | No | Yes (stages) |
 | `total-calories`, `calories-in-heart-rate-zone` | No | rollUp only | calories per window | Yes | Yes |

@@ -13,7 +13,7 @@ Weather ──schedule──────────────┘             
 
 | Source | Data | Arrives via | Spec |
 | --- | --- | --- | --- |
-| Google Health API | Heart rate, HRV, sleep, SpO2, skin temperature, steps (D13). Old Fitbit history; only steps continue from the phone until a Fitbit Air (D11) | Webhook → ingestion Lambda | 02–04 |
+| Google Health API | Heart rate, HRV, sleep, SpO2, respiratory rate, skin temperature, steps (D13). Old Fitbit history; only steps continue from the phone until a Fitbit Air (D11) | Webhook → ingestion Lambda | 02–04 |
 | Tasker (Android) | Screen time, home/office geofence events | POST to a Lambda function URL | 06 |
 | Weather API | Daily/hourly weather | EventBridge schedule | 07 |
 
