@@ -5,7 +5,7 @@
 ## Scope
 
 - Google Cloud project, OAuth consent screen and client (manual steps documented in the spec)
-- One-off authorisation flow to obtain a refresh token, stored in SSM Parameter Store
+- One-off authorisation flow to obtain a refresh token. Client ID, client secret and refresh token are stored as SSM SecureString parameters under `/phdi/google/`, created by hand in CloudShell (D15)
 - Python module in src/ingest/google_health/ that refreshes the access token and pulls one day of steps, heart rate and sleep (heart rate and sleep from a day in the old Fitbit history, D11)
 - Run it in the cloud (a manually invoked Lambda), writing raw JSON to S3
 
