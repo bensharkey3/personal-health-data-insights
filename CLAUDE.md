@@ -2,7 +2,7 @@
 
 ## Project
 
-Personal, single-user health data insights pipeline on AWS: Fitbit Air (Google Health API), phone screen time and location (Tasker), weather and pollen → S3 → Iceberg → daily dashboard and AI summary. Also a learning project for modern data engineering. Minimal cost matters most.
+Personal, single-user health data insights pipeline on AWS: Fitbit Air (Google Health API), phone screen time and location (Tasker), weather → S3 → Iceberg → daily dashboard and AI summary. Also a learning project for modern data engineering. Minimal cost matters.
 
 ## Where things are
 
@@ -33,7 +33,7 @@ Personal, single-user health data insights pipeline on AWS: Fitbit Air (Google H
 - Use plan mode for new features; wait for my approval before coding
 - Small, testable changes with tests. I use Claude Code both on my laptop and in the cloud (web/phone): GitHub is the source of truth, so commit and push all work, never rely on local-only files or state, and deploy only through GitHub Actions (no local AWS credentials needed)
 - When we make a design decision, add it to `docs/decisions.md` and update `docs/architecture.md`, not this file
-- Keep the repo lean: as few files and words as possible, succinct code and docs, nothing that repeats what's already there. I should be able to read through the repo without being overwhelmed
+- Keep the repo lean: few files, succinct code, nothing that repeats what's already there. Docs should be concise but not terse: include the "why" in plain sentences, skip boilerplate. I should be able to read through the repo without being overwhelmed
 - Keep chat replies brief, about half the usual length, so I can work quickly
 
 ## Current status
@@ -44,6 +44,6 @@ Personal, single-user health data insights pipeline on AWS: Fitbit Air (Google H
 - [ ] Step 4: webhook subscription trigger
 - [ ] Step 5: Iceberg tables + DuckDB transforms
 - [ ] Step 6: Tasker endpoints (screen time, geofences)
-- [ ] Step 7: weather and pollen
+- [ ] Step 7: weather
 - [ ] Step 8: morning chain, AI summary and static dashboard
 - [ ] Step 9: Cognito login
