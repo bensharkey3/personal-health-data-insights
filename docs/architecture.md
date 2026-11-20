@@ -13,7 +13,7 @@ Weather ──schedule──────────────┘             
 
 | Source | Data | Arrives via | Spec |
 | --- | --- | --- | --- |
-| Google Health API | Phone: steps now. Fitbit Air later: heart rate, sleep, HRV, resting HR, SpO2, skin temperature (D11) | Webhook → ingestion Lambda | 02–04 |
+| Google Health API | Activity, heart rate, HRV, SpO2, sleep, skin temperature and more. Old Fitbit history; phone-only activity until a Fitbit Air (D11) | Webhook → ingestion Lambda | 02–04 |
 | Tasker (Android) | Screen time, home/office geofence events | POST to a Lambda function URL | 06 |
 | Weather API | Daily/hourly weather | EventBridge schedule | 07 |
 
@@ -38,4 +38,4 @@ Weather ──schedule──────────────┘             
 
 ## Open questions
 
-- Step 08: the chain is triggered by a sleep session, which won't exist until the Fitbit arrives (D11), so start on a daily schedule? Timed fallback once sleep data exists? Summary delivery channel (dashboard only, or also email/push)? What data goes to Bedrock (aggregates only, or with context)?
+- Step 08: the chain is triggered by a sleep session, and there's no new sleep data until a Fitbit Air (D11), so start on a daily schedule? Timed fallback once sleep data exists? Summary delivery channel (dashboard only, or also email/push)? What data goes to Bedrock (aggregates only, or with context)?
