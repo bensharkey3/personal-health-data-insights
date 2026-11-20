@@ -12,36 +12,41 @@ What we learnt from `src/ingest/google_health/poc.py`, probe scripts run against
 
 ## Data types
 
-The history from my old Fitbit runs from October 2024 until it was lost in October 2026 (D11). "Continues" means new data still arrives from the phone.
+The history from my old Fitbit runs from October 2024 until it was lost in October 2026 (D11). "Continues" means new data still arrives from the phone. "Fitbit Air" says whether the planned device should supply it, from third-party spec sites ([SensorSpecs](https://sensorspecs.fyi/device/google-fitbit-air), [Gadgets & Wearables](https://gadgetsandwearables.com/technical-specs/fitbit-air/)); Google's own [spec page](https://store.google.com/us/product/google_fitbit_air_specs?hl=en-US) couldn't be read, so treat it as likely, not confirmed.
 
-| Type ID | Shape | Main fields | Continues? |
-| --- | --- | --- | --- |
-| `steps` | interval | `count` | Yes (phone) |
-| `distance` | interval | distance | Yes (phone) |
-| `active-minutes` | interval | active minutes | Yes |
-| `activity-level` | interval | activity level | Yes |
-| `active-zone-minutes` | interval | active zone minutes | No |
-| `sedentary-period` | interval | sedentary period | No |
-| `exercise` | session | workout details | No |
-| `heart-rate` | sample (every few seconds) | bpm | No |
-| `daily-resting-heart-rate` | daily | `beatsPerMinute`, calculation method | No |
-| `heart-rate-variability` | sample (during sleep) | RMSSD ms, high/low-frequency power | No |
-| `daily-heart-rate-variability` | daily | average HRV ms, deep-sleep RMSSD, non-REM heart rate, entropy | No |
-| `time-in-heart-rate-zone` | interval | time per zone | No |
-| `daily-heart-rate-zones` | daily | zone thresholds | No |
-| `oxygen-saturation` | sample (overnight) | SpO2 | No |
-| `daily-oxygen-saturation` | daily | SpO2 | No |
-| `daily-respiratory-rate` | daily | breathing rate | No |
-| `daily-sleep-temperature-derivations` | daily | nightly skin temperature °C, baseline, 30-day std dev | No |
-| `sleep` | session | interval, stage timeline, stage summary (minutes and count), minutes asleep/awake/to fall asleep, short awakenings, main-sleep flag | No |
-| `vo2-max`, `run-vo2-max` | occasional | cardio fitness | No |
-| `weight`, `height` | manual entries | profile values | n/a |
-
-Also in the docs and readable with our scopes, not probed yet: `active-energy-burned` (activity calories), `daily-vo2-max`, `respiratory-rate-sleep-summary`, `altitude`, `swim-lengths-data`.
+| Type ID | Shape | Main fields | Continues? | Fitbit Air |
+| --- | --- | --- | --- | --- |
+| `steps` | interval | `count` | Yes (phone) | Yes |
+| `distance` | interval | distance | Yes (phone) | Yes |
+| `active-minutes` | interval | active minutes | Yes | Yes |
+| `activity-level` | interval | activity level | Yes | Yes |
+| `active-energy-burned` | interval | activity calories | Yes | Yes |
+| `active-zone-minutes` | interval | active zone minutes | No | Very likely (calculated from heart rate; not listed) |
+| `sedentary-period` | interval | sedentary period | No | Yes |
+| `exercise` | session | workout details | No | Yes (auto-detected) |
+| `heart-rate` | sample (every few seconds) | bpm | No | Yes (every 2 s) |
+| `daily-resting-heart-rate` | daily | `beatsPerMinute`, calculation method | No | Yes |
+| `heart-rate-variability` | sample (during sleep) | RMSSD ms, high/low-frequency power | No | Yes |
+| `daily-heart-rate-variability` | daily | average HRV ms, deep-sleep RMSSD, non-REM heart rate, entropy | No | Yes |
+| `time-in-heart-rate-zone` | interval | time per zone | No | Yes |
+| `daily-heart-rate-zones` | daily | zone thresholds | No | Yes |
+| `oxygen-saturation` | sample (overnight) | SpO2 | No | Yes |
+| `daily-oxygen-saturation` | daily | SpO2 | No | Yes |
+| `daily-respiratory-rate` | daily | breathing rate | No | Yes |
+| `respiratory-rate-sleep-summary` | sample | breathing rate during sleep | No | Yes |
+| `daily-sleep-temperature-derivations` | daily | nightly skin temperature °C, baseline, 30-day std dev | No | Yes |
+| `sleep` | session | interval, stage timeline, stage summary (minutes and count), minutes asleep/awake/to fall asleep, short awakenings, main-sleep flag | No | Yes (stages) |
+| `total-calories`, `calories-in-heart-rate-zone` | rollUp only | calories per window | Yes | Yes |
+| `floors` | rollUp only | floors climbed | No | **No** (no barometric altimeter) |
+| `altitude` | interval | altitude | No | **No** (no altimeter; may come from phone GPS during workouts) |
+| `vo2-max`, `run-vo2-max`, `daily-vo2-max` | occasional | cardio fitness | No | **Not listed** (may still be estimated from heart rate and phone GPS runs) |
+| `swim-lengths-data` | interval | swim lengths | No | **Not listed** (water resistant to 5 ATM, but swim tracking isn't mentioned) |
+| `weight`, `height` | manual entries | profile values | n/a | n/a |
 
 - **RollUp only:** `floors` (also `reconcile`), `total-calories`, `calories-in-heart-rate-zone`. No `list`.
 - **Not available in any API:** Fitbit's sleep score, readiness, stress, cardio load and energy score. They're calculated in the Fitbit app (several are Premium) and were never in the legacy Fitbit Web API either ([sleep docs](https://dev.fitbit.com/build/reference/web-api/sleep/get-sleep-log-by-date/), [forum](https://community.fitbit.com/t5/Web-API-Development/Web-API-for-Readiness-Score-and-Stress-data/m-p/5579874)). A Fitbit data export (Google Takeout) may include them; unverified. A sleep score could be approximated from the sleep, heart rate and HRV fields.
-- **Overlap:** `steps` and `distance` were recorded by both phone and Fitbit, so curated tables must keep one source per interval (D11).
+- **On the Air but not in the API:** the Air computes Daily Readiness and Cardio Load in the app; neither is exposed (see above). It has no ECG or EDA sensor, which the old Fitbit didn't give us data for either.
+- **Overlap:** `steps` and `distance` were recorded by both phone and Fitbit; use `reconcile`/`rollUp`, which pick one source per interval (D12, and see [Multiple sources](#multiple-sources-phone-and-fitbit)).
 
 ## Record formats
 
