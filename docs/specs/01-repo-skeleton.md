@@ -21,3 +21,14 @@
 ## Out of scope
 
 Any Lambda or data source.
+
+## Bootstrap runbook (AWS CloudShell, once)
+
+`infra/bootstrap/` creates the state bucket and two GitHub OIDC roles: `github-terraform-plan` (read-only, PRs) and `github-terraform-apply` (only the approval-gated `production` environment).
+
+1. Install Terraform: `curl -sLo tf.zip https://releases.hashicorp.com/terraform/1.15.4/terraform_1.15.4_linux_amd64.zip && unzip -o tf.zip -d ~/bin && terraform version`
+2. `git clone https://github.com/bensharkey3/personal-health-data-insights && cd personal-health-data-insights/infra/bootstrap`
+3. Pick a unique bucket name (keep it out of the repo): `export TF_VAR_state_bucket_name=<name>`
+4. First apply with local state: `mv backend.tf backend.tf.off && terraform init && terraform apply`
+5. Move state into the bucket: `mv backend.tf.off backend.tf && terraform init -migrate-state -backend-config="bucket=$TF_VAR_state_bucket_name"`, answer `yes`, then `rm -f terraform.tfstate*`
+6. `terraform output`, then set GitHub secrets `AWS_PLAN_ROLE_ARN` and `AWS_APPLY_ROLE_ARN` and variable `TF_STATE_BUCKET` (repo Settings → Secrets and variables → Actions)
