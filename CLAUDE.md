@@ -9,6 +9,7 @@ Personal, single-user health data insights pipeline on AWS: Fitbit Air (Google H
 - Architecture and design: `docs/architecture.md` — read before any design or infrastructure change
 - Decisions: `docs/decisions.md` (one short entry per decision)
 - Feature specs: `docs/specs/<feature>.md` — work from the spec for the current task
+- Google Health API findings (types, filters, pagination): `docs/google-health-api.md`
 - Code: `infra/` (Terraform), `.github/workflows/` (GitHub Actions CI/CD), `src/ingest/<source>/`, `src/transform/`, `src/dashboard/`, `src/common/`, `tests/`
 
 ## Commands
