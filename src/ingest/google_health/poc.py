@@ -141,7 +141,7 @@ def fetch(kind: str, day: date, token: str) -> list[dict]:
     points: list[dict] = []
     page = None
     while True:
-        query = {"filter": day_filter(kind, day), "pageSize": 1000}  # the default page is tiny
+        query = {"filter": day_filter(kind, day), "pageSize": 5000}  # default 50; larger values return 5,000
         query |= {"pageToken": page} if page else {}
         qs = urllib.parse.urlencode(query, quote_via=urllib.parse.quote)  # spaces as %20
         req = urllib.request.Request(
