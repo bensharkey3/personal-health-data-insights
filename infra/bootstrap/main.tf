@@ -75,8 +75,8 @@ data "aws_iam_openid_connect_provider" "github" {
 # Trust policy for a role GitHub Actions can assume, limited to this repo and one "sub" claim.
 data "aws_iam_policy_document" "trust" {
   for_each = {
-    plan  = "repo:${var.github_repo}:pull_request"           # any PR in this repo
-    apply = "repo:${var.github_repo}:environment:production" # only the approval-gated environment
+    plan  = "pull_request"           # any PR in this repo
+    apply = "environment:production" # only the approval-gated environment
   }
   statement {
     actions = ["sts:AssumeRoleWithWebIdentity"]
@@ -92,7 +92,9 @@ data "aws_iam_policy_document" "trust" {
     condition {
       test     = "StringEquals"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = [each.value]
+      # GitHub's immutable format (owner@id/repo@id) is what this repo sends; the classic format
+      # is kept in case the repo setting changes.
+      values = ["${var.github_sub_immutable}:${each.value}", "repo:${var.github_repo}:${each.value}"]
     }
   }
 }
