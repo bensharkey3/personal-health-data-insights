@@ -9,19 +9,6 @@ Weather ──schedule──────────────┘             
                                        Dashboard + AI summary (CloudFront) ◀─ Morning chain ┘
 ```
 
-<<<<<<< HEAD
-| Layer | What | Decision |
-| --- | --- | --- |
-| Ingest | Rolling 72h re-fetch; DynamoDB watermark; backoff, concurrency 1 | D2 |
-| Raw | S3 `raw/<source>/<data_type>/dt=YYYY-MM-DD/` (UTC), immutable, encrypted, versioned | D1 |
-| Curated | Iceberg table per data type, monthly partitions, `local_date` column, `MERGE INTO` dedupe | D3, D5 |
-| Maintenance | Weekly Athena `OPTIMIZE` / `VACUUM` | D5 |
-| Morning chain | Step Functions: merge day → metrics vs 30-day baseline → Bedrock summary → static HTML | |
-| Serving | S3 + CloudFront; CloudFront Function auth, then Cognito in step 09 | D4 |
-| Infra / CI | Terraform (CloudShell bootstrap, then GitHub Actions + OIDC); zips + DuckDB layer | D6, D10 |
-| Ops | Error + freshness alarms, $1 budget, 14-day logs; keep data indefinitely | D7, D9 |
-| Region | `ap-southeast-2` (+ `us-east-1` for CloudFront) | D8 |
-=======
 ## Sources
 
 | Source | Data | Arrives via | Spec |
@@ -48,7 +35,6 @@ Weather ──schedule──────────────┘             
 
 - **Infra/CI:** Terraform in `infra/`. A one-off CloudShell bootstrap creates the state bucket and GitHub OIDC role; after that, GitHub Actions plans on PRs and applies on merge to `main` after manual approval (D6). One zip per Lambda plus a shared DuckDB layer (D10).
 - **Monitoring:** error alarms, a daily freshness check and a $1/month budget alert, all by email; 14-day log retention (D7).
->>>>>>> origin/main
 
 ## Open questions
 
