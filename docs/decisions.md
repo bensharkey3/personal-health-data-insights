@@ -31,3 +31,6 @@ Keep raw and curated data indefinitely. Athena results, old S3 versions, Iceberg
 
 ## D10: Lambda packaging
 One zip per function, built by `uv` in CI, plus a shared layer with DuckDB and pre-downloaded extensions (Lambda can't download them at runtime).
+
+## D11: Phone data first, Fitbit later
+The Fitbit Air won't arrive until after the project is built, so every step is built and tested on data the phone records in Google Health (steps today, plus any other phone types the API returns). Device-only types (heart rate, sleep, HRV, resting HR, SpO2, skin temperature) are added later by config; tests use synthetic fixtures for them until then.

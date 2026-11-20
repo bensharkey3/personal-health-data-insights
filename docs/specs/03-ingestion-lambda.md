@@ -1,6 +1,6 @@
 # Step 03: Ingestion Lambda with watermark
 
-**Goal:** reliable incremental ingestion of the core Google Health data types: heart rate, sleep, HRV, resting heart rate, SpO2, skin temperature and steps. Others can be added later by configuration.
+**Goal:** reliable incremental ingestion of Google Health data. Phone types (steps) now; device types (heart rate, sleep, HRV, resting heart rate, SpO2, skin temperature) are added by configuration when the Fitbit arrives (D11).
 
 ## Scope
 

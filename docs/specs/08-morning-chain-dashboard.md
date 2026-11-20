@@ -4,7 +4,7 @@
 
 ## Scope
 
-- Trigger: completed sleep session arrives via webhook (no fixed time)
+- Trigger: completed sleep session arrives via webhook (no fixed time). Until the Fitbit arrives there is no sleep data, so start on a daily schedule (D11)
 - Step Functions chain: merge previous day into Iceberg → compute metrics vs 30-day baseline (sleep, HRV, resting HR, skin temperature) → Bedrock AI summary → build dashboard
 - Dashboard Lambda: DuckDB queries, Plotly charts, AI summary at top, mobile-friendly static HTML
 - S3 + CloudFront hosting behind an unguessable private link, with a CloudFront Function checking an interim credential (D4)
