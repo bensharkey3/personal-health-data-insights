@@ -19,7 +19,7 @@ Weather ──schedule──────────────┘             
 
 ## Ingestion and storage
 
-- **Ingestion:** each run re-fetches the last 72h (configurable per data type), so data that syncs late isn't missed. A DynamoDB watermark records the last run and newest data point for backfill and freshness checks. Backoff on 429/5xx, concurrency 1 (D2).
+- **Ingestion:** each run re-fetches the last 72h (configurable per data type), so data that syncs late isn't missed. A DynamoDB watermark records the last run and newest data point for backfill and freshness checks. Backoff on 429/5xx, concurrency 1 (D2). The full-history backfill and ongoing loads start only once everything is built, in step 10 (D14).
 - **Raw:** S3 `raw/<source>/<data_type>/dt=YYYY-MM-DD/` (UTC date). Immutable JSON; block public access, encryption and versioning on (D1).
 - **Curated:** one Iceberg table per data type in Glue, partitioned by month. Each has a natural key so `MERGE INTO` removes the duplicates the overlapping fetches create; interval types use fixed rollUp windows so the key is stable (D2, D5, D12).
 - **Time:** timestamps in UTC plus a `local_date` column; sleep counts toward the date it ends (D3).
