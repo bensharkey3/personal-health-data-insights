@@ -24,7 +24,7 @@ Any Lambda or data source.
 
 ## Bootstrap runbook (AWS CloudShell, once)
 
-`infra/bootstrap/` creates the state bucket and two GitHub OIDC roles: `github-terraform-plan` (read-only, PRs) and `github-terraform-apply` (only the approval-gated `production` environment).
+`infra/bootstrap/` creates the state bucket and two GitHub OIDC roles (using the account's existing GitHub OIDC provider): `github-terraform-plan` (read-only, PRs) and `github-terraform-apply` (only the approval-gated `production` environment).
 
 1. Install Terraform: `curl -sLo tf.zip https://releases.hashicorp.com/terraform/1.15.4/terraform_1.15.4_linux_amd64.zip && unzip -o tf.zip -d ~/bin && terraform version`
 2. `git clone https://github.com/bensharkey3/personal-health-data-insights && cd personal-health-data-insights/infra/bootstrap`
