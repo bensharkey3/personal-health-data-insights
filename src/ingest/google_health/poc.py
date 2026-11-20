@@ -141,7 +141,8 @@ def fetch(kind: str, day: date, token: str) -> list[dict]:
     points: list[dict] = []
     page = None
     while True:
-        query = {"filter": day_filter(kind, day)} | ({"pageToken": page} if page else {})
+        query = {"filter": day_filter(kind, day), "pageSize": 1000}  # the default page is tiny
+        query |= {"pageToken": page} if page else {}
         qs = urllib.parse.urlencode(query, quote_via=urllib.parse.quote)  # spaces as %20
         req = urllib.request.Request(
             f"{API}/{kind}/dataPoints?{qs}", headers={"Authorization": f"Bearer {token}"}
