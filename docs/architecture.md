@@ -1,53 +1,27 @@
 # Architecture
 
-> Living document. Read before any design or infrastructure change; update it whenever an ADR in [decisions/](decisions/) changes the design. Nothing here may identify the owner's location, AWS account or endpoints (see the hard rule in CLAUDE.md).
-
-## Overview
-
-Single-user, serverless pipeline on AWS. Data flows one way:
+Single-user serverless pipeline on AWS. The reasons are in [decisions.md](decisions.md).
 
 ```
-Sources ──▶ Ingest Lambdas ──▶ S3 raw (immutable JSON) ──▶ Transform Lambda ──▶ Iceberg tables (Glue catalog)
-                                                                                      │
-                                       Static dashboard + AI summary  ◀── Morning chain ┘
+Fitbit (Google Health) ─webhook─┐
+Tasker (phone) ──function URL───┼─▶ Ingest Lambdas ─▶ S3 raw JSON ─▶ DuckDB transform ─▶ Iceberg (Glue)
+Weather/pollen ──schedule───────┘                                                          │
+                                       Dashboard + AI summary (CloudFront) ◀─ Morning chain ┘
 ```
 
-## Sources
-
-| Source | Data | How it arrives | Spec |
-| --- | --- | --- | --- |
-| Google Health API (Fitbit Air) | Heart rate, sleep, HRV, resting HR, SpO2, skin temperature, steps | Webhook → ingestion Lambda (pull with watermark) | 02, 03, 04 |
-| Tasker (Android phone) | Screen time, home/office geofence events | HTTPS POST to Lambda function URL | 06 |
-| Weather and pollen APIs | Daily/hourly weather, pollen | EventBridge schedule | 07 |
-
-## Storage
-
-- **Raw:** S3, immutable JSON, `raw/<source>/<data_type>/dt=YYYY-MM-DD/` (UTC date). Block public access, encryption, versioning.
-- **Curated:** Iceberg tables in a Glue database, one per data type, partitioned by month on event timestamp. Written by DuckDB in Lambda.
-- **State:** DynamoDB watermark table (one item per source and data type).
-- **Secrets:** SSM Parameter Store SecureString.
-
-## Processing
-
-- Ingestion Lambdas: idempotent, exponential backoff on 429/5xx, reserved concurrency 1.
-- Transform Lambda: raw JSON → flatten → `MERGE INTO` Iceberg.
-- Compaction: scheduled weekly (rewrite small files, expire snapshots, remove orphans).
-- Morning chain (Step Functions): merge previous day → metrics vs 30-day baseline → Bedrock summary → build static HTML dashboard.
-
-## Serving
-
-- Static HTML on S3 + CloudFront; Cognito login via Lambda@Edge (step 09).
-
-## Cross-cutting
-
-- Timestamps stored in UTC.
-- Infrastructure in Terraform (`infra/`), remote state in S3 with native locking.
-- CI/CD via GitHub Actions with OIDC; apply gated by manual approval.
-- Cost: free tiers first, serverless only, no always-on compute.
+| Layer | What | Decision |
+| --- | --- | --- |
+| Ingest | Rolling 72h re-fetch; DynamoDB watermark; backoff, concurrency 1 | D2 |
+| Raw | S3 `raw/<source>/<data_type>/dt=YYYY-MM-DD/` (UTC), immutable, encrypted, versioned | D1 |
+| Curated | Iceberg table per data type, monthly partitions, `local_date` column, `MERGE INTO` dedupe | D3, D5 |
+| Maintenance | Weekly Athena `OPTIMIZE` / `VACUUM` | D5 |
+| Morning chain | Step Functions: merge day → metrics vs 30-day baseline → Bedrock summary → static HTML | |
+| Serving | S3 + CloudFront; CloudFront Function auth, then Cognito in step 09 | D4 |
+| Infra / CI | Terraform (CloudShell bootstrap, then GitHub Actions + OIDC); zips + DuckDB layer | D6, D10 |
+| Ops | Error + freshness alarms, $2 budget, 14-day logs; keep data indefinitely | D7, D9 |
+| Region | `ap-southeast-2` (+ `us-east-1` for CloudFront) | D8 |
 
 ## Open questions
 
-- Local-date handling (daylight saving) for sleep and daily metrics.
-- Watermark strategy for late-synced device data.
-- Interim protection for the dashboard before step 09.
-- Pollen data source for the home location.
+- Step 07: pollen source for the home location (Open-Meteo pollen is Europe-only).
+- Step 08: timed fallback if no sleep data arrives; summary delivery channel; what data goes to Bedrock.

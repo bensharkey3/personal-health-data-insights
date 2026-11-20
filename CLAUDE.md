@@ -7,7 +7,7 @@ Personal, single-user health data insights pipeline on AWS: Fitbit Air (Google H
 ## Where things are
 
 - Architecture and design: `docs/architecture.md` — read before any design or infrastructure change
-- Decisions: `docs/decisions/` (one short ADR per decision)
+- Decisions: `docs/decisions.md` (one short entry per decision)
 - Feature specs: `docs/specs/<feature>.md` — work from the spec for the current task
 - Code: `infra/` (Terraform), `.github/workflows/` (GitHub Actions CI/CD), `src/ingest/<source>/`, `src/transform/`, `src/dashboard/`, `src/common/`, `tests/`
 
@@ -32,7 +32,8 @@ Personal, single-user health data insights pipeline on AWS: Fitbit Air (Google H
 - I'm strong in SQL and AWS, intermediate Python — briefly explain non-obvious Python
 - Use plan mode for new features; wait for my approval before coding
 - Small, testable changes with tests. I use Claude Code both on my laptop and in the cloud (web/phone): GitHub is the source of truth, so commit and push all work, never rely on local-only files or state, and deploy only through GitHub Actions (no local AWS credentials needed)
-- When we make a design decision, add an ADR and update `docs/architecture.md`, not this file
+- When we make a design decision, add it to `docs/decisions.md` and update `docs/architecture.md`, not this file
+- Keep the repo lean: as few files and words as possible, succinct code and docs, nothing that repeats what's already there. I should be able to read through the repo without being overwhelmed
 
 ## Current status
 
