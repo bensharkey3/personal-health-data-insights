@@ -40,3 +40,6 @@ Interval types such as steps come back from `list` and `reconcile` chopped into 
 
 ## D13: Core metrics only
 Only core metrics are in scope: heart rate (`heart-rate`, `daily-resting-heart-rate`), HRV (`heart-rate-variability`, `daily-heart-rate-variability`), sleep (`sleep`), SpO2 (`oxygen-saturation`, `daily-oxygen-saturation`), skin temperature (`daily-sleep-temperature-derivations`) and steps (`steps`). These are the metrics that matter for sleep and recovery, and they all continue on the Fitbit Air. Other types (distance, activity, calories, zones, VO2 max, etc.) are left out to keep ingestion, tables and the dashboard small; adding one later is a config change. The full list is in [google-health-api.md](google-health-api.md).
+
+## D14: Backfill and go-live after the build
+The full-history backfill and the ongoing incremental load start only once the whole pipeline is built (step 10). Until then, every pipeline runs manually on short test windows, and webhook subscriptions and schedules are only switched on to test them. This avoids re-running a long backfill whenever raw layout, transforms or table design change during the build, and keeps costs near zero meanwhile.

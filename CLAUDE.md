@@ -49,3 +49,4 @@ Personal, single-user health data insights pipeline on AWS: Fitbit Air (Google H
 - [ ] Step 7: weather
 - [ ] Step 8: morning chain, AI summary and static dashboard
 - [ ] Step 9: Cognito login
+- [ ] Step 10: full-history backfill, then switch on ongoing incremental loads
