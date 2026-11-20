@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Claude Code PreToolUse hook (Bash): stop commits and pushes that would land on main.
+# Claude Code PreToolUse hook (Bash and PowerShell tools): stop commits and pushes that would land on main.
 # Exit code 2 blocks the tool call and shows stderr to Claude, which then creates a branch.
 # Deliberately plain bash + grep (no jq/python) so it works on macOS, Linux and cloud sessions.
 
