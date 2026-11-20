@@ -1,6 +1,6 @@
 # Architecture
 
-Single-user serverless pipeline on AWS. The reasons are in [decisions.md](decisions.md).
+Single-user serverless pipeline on AWS. Data flows one way, from sources to a daily dashboard. The reasons behind each choice are in [decisions.md](decisions.md) (D1, D2, …). Nothing here may identify my location, AWS account or endpoints.
 
 ```
 Fitbit (Google Health) ─webhook─┐
@@ -9,18 +9,33 @@ Weather ──schedule──────────────┘             
                                        Dashboard + AI summary (CloudFront) ◀─ Morning chain ┘
 ```
 
-| Layer | What | Decision |
-| --- | --- | --- |
-| Ingest | Rolling 72h re-fetch; DynamoDB watermark; backoff, concurrency 1 | D2 |
-| Raw | S3 `raw/<source>/<data_type>/dt=YYYY-MM-DD/` (UTC), immutable, encrypted, versioned | D1 |
-| Curated | Iceberg table per data type, monthly partitions, `local_date` column, `MERGE INTO` dedupe | D3, D5 |
-| Maintenance | Weekly Athena `OPTIMIZE` / `VACUUM` | D5 |
-| Morning chain | Step Functions: merge day → metrics vs 30-day baseline → Bedrock summary → static HTML | |
-| Serving | S3 + CloudFront; CloudFront Function auth, then Cognito in step 09 | D4 |
-| Infra / CI | Terraform (CloudShell bootstrap, then GitHub Actions + OIDC); zips + DuckDB layer | D6, D10 |
-| Ops | Error + freshness alarms, $2 budget, 14-day logs; keep data indefinitely | D7, D9 |
-| Region | `ap-southeast-2` (+ `us-east-1` for CloudFront) | D8 |
+## Sources
+
+| Source | Data | Arrives via | Spec |
+| --- | --- | --- | --- |
+| Google Health API (Fitbit Air) | Heart rate, sleep, HRV, resting HR, SpO2, skin temperature, steps | Webhook → ingestion Lambda | 02–04 |
+| Tasker (Android) | Screen time, home/office geofence events | POST to a Lambda function URL | 06 |
+| Weather API | Daily/hourly weather | EventBridge schedule | 07 |
+
+## Ingestion and storage
+
+- **Ingestion:** each run re-fetches the last 72h (configurable per data type), so data that syncs late isn't missed. A DynamoDB watermark records the last run and newest data point for backfill and freshness checks. Backoff on 429/5xx, concurrency 1 (D2).
+- **Raw:** S3 `raw/<source>/<data_type>/dt=YYYY-MM-DD/` (UTC date). Immutable JSON; block public access, encryption and versioning on (D1).
+- **Curated:** one Iceberg table per data type in Glue, partitioned by month. Each has a natural key so `MERGE INTO` removes the duplicates the overlapping fetches create (D2, D5).
+- **Time:** timestamps in UTC plus a `local_date` column; sleep counts toward the date it ends (D3).
+- **Retention:** data kept indefinitely; operational leftovers expire (D9).
+
+## Processing and serving
+
+- **Transform:** a Lambda where DuckDB flattens raw JSON and merges it into Iceberg. A weekly Athena `OPTIMIZE` / `VACUUM` job compacts files and expires snapshots, which DuckDB can't do (D5).
+- **Morning chain:** Step Functions, triggered when a sleep session arrives: merge the day → compare metrics to a 30-day baseline → Bedrock summary → build static HTML.
+- **Serving:** S3 + CloudFront in `ap-southeast-2` / `us-east-1` (D8). A CloudFront Function checks an interim credential until Cognito login in step 09 (D4).
+
+## Operations
+
+- **Infra/CI:** Terraform in `infra/`. A one-off CloudShell bootstrap creates the state bucket and GitHub OIDC role; after that, GitHub Actions plans on PRs and applies on merge to `main` after manual approval (D6). One zip per Lambda plus a shared DuckDB layer (D10).
+- **Monitoring:** error alarms, a daily freshness check and a $2/month budget alert, all by email; 14-day log retention (D7).
 
 ## Open questions
 
-- Step 08: timed fallback if no sleep data arrives; summary delivery channel; what data goes to Bedrock.
+- Step 08: timed fallback if no sleep data arrives? Summary delivery channel (dashboard only, or also email/push)? What data goes to Bedrock (aggregates only, or with context)?
