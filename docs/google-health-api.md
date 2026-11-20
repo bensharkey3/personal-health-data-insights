@@ -60,7 +60,7 @@ Also in the docs and readable with our scopes, not probed yet: `active-energy-bu
 | sample | `heart_rate.sample_time.physical_time` (UTC, with `Z`) or `heart_rate_variability.sample_time.civil_time` | |
 | daily | `daily_heart_rate_variability.date` | `>=` and `<` work, `=` is rejected |
 
-So ingestion config needs a filter field per type, not just a type ID.
+The pattern held for all 28 list types tried: `<type_snake>.interval.civil_start_time` (interval), `.sample_time.civil_time` (sample), `.date` (daily), `.interval.civil_end_time` (sleep). So ingestion config needs a filter field per type, not just a type ID.
 
 ## Consistency: list vs rollUp
 
@@ -68,7 +68,19 @@ So ingestion config needs a filter field per type, not just a type ID.
 - **`rollUp` is stable:** fixed windows (60 s, 15 min, 1 h) returned identical windows and totals on every run. Windows with no data are omitted. Response: `rollupDataPoints[]` with `startTime`, `endTime` and e.g. `steps.countSum`. So interval types are ingested with `rollUp` (D12).
 - **Samples, daily and session types were stable with `list`** (e.g. `heart-rate` returned the same 35,230 readings every run).
 - `rollUp` body: `{"range": {"startTime", "endTime"}, "windowSize": "60s", "pageSize": 10000}`; `dailyRollUp` uses civil dates and `windowSizeDays`. Both take an optional `dataSourceFamily`.
-- Not yet checked: whether `rollUp` adds phone and Fitbit steps together for the overlap period (D11). Compare totals with and without `dataSourceFamily` in step 03.
+
+## Multiple sources (phone and Fitbit)
+
+`dataSourceFamily` accepts `users/me/dataSourceFamilies/` + `all-sources` (default), `google-wearables`, `google-sources` or `self-sources`. Tested on steps:
+
+| Day | `list`, all sources | `reconcile` / `rollUp` |
+| --- | --- | --- |
+| Watch and phone | watch + phone + a Fitbit-labelled copy of the phone steps (about 2x) | watch steps only: the overlapping phone steps are dropped |
+| Phone only | phone + the Fitbit-labelled copy (exactly 2x) | about the phone total (merged per interval, +6%) |
+
+- Summing raw `list` records double counts, even with no watch: the Fitbit app copies phone steps under platform `FITBIT` with no device.
+- `reconcile` and `rollUp` pick between sources per interval rather than adding them, so the totals match what the apps show. `dataSourceFamily` doesn't separate phone from watch cleanly (the copy counts as a wearable).
+- Per-device figures would need the raw `list` source fields summed into fixed windows in the transform, handling the copy. Not planned.
 - Range limits per request: 14 days for `heart-rate`, `active-minutes`, `total-calories`, `calories-in-heart-rate-zone`; 90 days for everything else.
 
 ## Pagination and performance
