@@ -2,13 +2,14 @@
 
 ## Project
 
-Personal, single-user health data insights pipeline on AWS: Fitbit Air (Google Health API), phone screen time and location (Tasker), weather and pollen → S3 → Iceberg → daily dashboard and AI summary. Also a learning project for modern data engineering. Minimal cost matters most.
+Personal, single-user health data insights pipeline on AWS: Fitbit Air (Google Health API), phone screen time and location (Tasker), weather → S3 → Iceberg → daily dashboard and AI summary. Also a learning project for modern data engineering. Minimal cost matters.
 
 ## Where things are
 
 - Architecture and design: `docs/architecture.md` — read before any design or infrastructure change
 - Decisions: `docs/decisions.md` (one short entry per decision)
 - Feature specs: `docs/specs/<feature>.md` — work from the spec for the current task
+- Google Health API findings (types, filters, pagination): `docs/google-health-api.md`
 - Code: `infra/` (Terraform), `.github/workflows/` (GitHub Actions CI/CD), `src/ingest/<source>/`, `src/transform/`, `src/dashboard/`, `src/common/`, `tests/`
 
 ## Commands
@@ -32,18 +33,20 @@ Personal, single-user health data insights pipeline on AWS: Fitbit Air (Google H
 - I'm strong in SQL and AWS, intermediate Python — briefly explain non-obvious Python
 - Use plan mode for new features; wait for my approval before coding
 - Small, testable changes with tests. I use Claude Code both on my laptop and in the cloud (web/phone): GitHub is the source of truth, so commit and push all work, never rely on local-only files or state, and deploy only through GitHub Actions (no local AWS credentials needed)
+- Work on a feature branch with a PR, never on `main`. Before pushing more commits to an existing PR's branch, check it's still open (`gh pr view <n> --json state`); if merged, start a new branch from `main` and open a new PR
 - When we make a design decision, add it to `docs/decisions.md` and update `docs/architecture.md`, not this file
-- Keep the repo lean: as few files and words as possible, succinct code and docs, nothing that repeats what's already there. I should be able to read through the repo without being overwhelmed
+- Keep the repo lean: few files, succinct code, nothing that repeats what's already there. Docs should be concise but not terse: include the "why" in plain sentences, skip boilerplate. I should be able to read through the repo without being overwhelmed
 - Keep chat replies brief, about half the usual length, so I can work quickly
 
 ## Current status
 
-- [ ] Step 1: repo skeleton, tooling, Terraform remote state
+- [x] Step 1: repo skeleton, tooling, Terraform remote state
 - [ ] Step 2: Google Health OAuth + pull one day of data
 - [ ] Step 3: ingestion Lambda with watermark + raw S3 writes
 - [ ] Step 4: webhook subscription trigger
 - [ ] Step 5: Iceberg tables + DuckDB transforms
 - [ ] Step 6: Tasker endpoints (screen time, geofences)
-- [ ] Step 7: weather and pollen
+- [ ] Step 7: weather
 - [ ] Step 8: morning chain, AI summary and static dashboard
 - [ ] Step 9: Cognito login
+- [ ] Step 10: full-history backfill, then switch on ongoing incremental loads

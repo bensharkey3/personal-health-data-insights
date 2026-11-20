@@ -14,7 +14,7 @@
 
 ## Done when
 
-- Tables for heart rate, steps and sleep return correct row counts for a test day, in DuckDB and in Athena
+- Tables for heart rate, steps and sleep return correct row counts for a test day from the Fitbit history, in DuckDB and in Athena
 - Re-running a day produces no duplicate rows
 
 ## Out of scope

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Claude Code PreToolUse hook (Bash): stop commits and pushes that would land on main.
+# Claude Code PreToolUse hook (Bash and PowerShell tools): stop commits and pushes that would land on main.
 # Exit code 2 blocks the tool call and shows stderr to Claude, which then creates a branch.
 # Deliberately plain bash + grep (no jq/python) so it works on macOS, Linux and cloud sessions.
 
@@ -29,7 +29,8 @@ if [[ $branch == "main" && -z $branch_created ]]; then
 fi
 
 # Explicit pushes to main from any branch, e.g. "git push origin main" or "HEAD:main".
-if [[ -n $is_push ]] && grep -Eq 'git +(-C +[^ ]+ +)?push[^"]*[ :]main([ "]|$)' <<<"$input"; then
+# Stays within one command: stops at ; & | and the JSON-escaped newline (\n).
+if [[ -n $is_push ]] && grep -Eq 'git +(-C +[^ ]+ +)?push[^"&;|\\]*[ :]main([ "&;|\\]|$)' <<<"$input"; then
   block "the push targets main."
 fi
 

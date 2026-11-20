@@ -112,7 +112,7 @@ def access_token(client: dict, refresh_token: str) -> str:
     except urllib.error.HTTPError as e:
         raise SystemExit(
             f"Token refresh failed ({e.read().decode()}). Delete token.json and rerun."
-        )
+        ) from None  # hide the HTTPError traceback; the message says it all
 
 
 def day_filter(kind: str, day: date) -> str:
@@ -141,7 +141,8 @@ def fetch(kind: str, day: date, token: str) -> list[dict]:
     points: list[dict] = []
     page = None
     while True:
-        query = {"filter": day_filter(kind, day)} | ({"pageToken": page} if page else {})
+        query = {"filter": day_filter(kind, day), "pageSize": 5000}  # default 50, max 5,000
+        query |= {"pageToken": page} if page else {}
         qs = urllib.parse.urlencode(query, quote_via=urllib.parse.quote)  # spaces as %20
         req = urllib.request.Request(
             f"{API}/{kind}/dataPoints?{qs}", headers={"Authorization": f"Bearer {token}"}
