@@ -31,4 +31,4 @@ Any Lambda or data source.
 3. Pick a unique bucket name (keep it out of the repo): `export TF_VAR_state_bucket_name=<name>`
 4. First apply with local state: `mv backend.tf backend.tf.off && terraform init && terraform apply`
 5. Move state into the bucket: `mv backend.tf.off backend.tf && terraform init -migrate-state -backend-config="bucket=$TF_VAR_state_bucket_name"`, answer `yes`, then `rm -f terraform.tfstate*`
-6. `terraform output`, then set GitHub secrets `AWS_PLAN_ROLE_ARN` and `AWS_APPLY_ROLE_ARN` and variable `TF_STATE_BUCKET` (repo Settings → Secrets and variables → Actions)
+6. `terraform output`, then set GitHub secrets `AWS_PLAN_ROLE_ARN`, `AWS_APPLY_ROLE_ARN` and `TF_STATE_BUCKET` (a secret, not a variable, so it's hidden in the public logs) (repo Settings → Secrets and variables → Actions)
