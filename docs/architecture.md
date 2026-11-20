@@ -34,7 +34,7 @@ Weather ──schedule──────────────┘             
 ## Operations
 
 - **Infra/CI:** Terraform in `infra/`. A one-off CloudShell bootstrap creates the state bucket and GitHub OIDC role; after that, GitHub Actions plans on PRs and applies on merge to `main` after manual approval (D6). One zip per Lambda plus a shared DuckDB layer (D10).
-- **Monitoring:** error alarms, a daily freshness check and a $2/month budget alert, all by email; 14-day log retention (D7).
+- **Monitoring:** error alarms, a daily freshness check and a $1/month budget alert, all by email; 14-day log retention (D7).
 
 ## Open questions
 
