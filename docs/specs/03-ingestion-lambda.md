@@ -1,6 +1,6 @@
 # Step 03: Ingestion Lambda with watermark
 
-**Goal:** reliable incremental ingestion of Google Health data. Data types are a config list (IDs in D11); device-only types have no new data until a Fitbit Air, which isn't an error.
+**Goal:** reliable incremental ingestion of Google Health data. Data types are a config list: the in-scope core metrics (D13); device-only types have no new data until a Fitbit Air, which isn't an error.
 
 ## Scope
 

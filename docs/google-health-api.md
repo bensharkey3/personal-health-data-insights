@@ -14,7 +14,7 @@ What we learnt from `src/ingest/google_health/poc.py`, probe scripts run against
 
 The history from my old Fitbit runs from October 2024 until it was lost in October 2026 (D11). "Continues" means new data still arrives from the phone. "Fitbit Air" says whether the planned device should supply it, from third-party spec sites ([SensorSpecs](https://sensorspecs.fyi/device/google-fitbit-air), [Gadgets & Wearables](https://gadgetsandwearables.com/technical-specs/fitbit-air/)); Google's own [spec page](https://store.google.com/us/product/google_fitbit_air_specs?hl=en-US) couldn't be read, so treat it as likely, not confirmed.
 
-**Core metrics** (bold in the table) are the ones that matter most for this project. All continue on the Fitbit Air; only steps continues on the phone meanwhile:
+**In scope** (D13): only these core metrics are ingested and used. All continue on the Fitbit Air; only steps continues on the phone meanwhile:
 
 - Heart: `heart-rate`, `daily-resting-heart-rate`
 - HRV: `heart-rate-variability`, `daily-heart-rate-variability`
@@ -23,34 +23,34 @@ The history from my old Fitbit runs from October 2024 until it was lost in Octob
 - Temperature: `daily-sleep-temperature-derivations`
 - Steps: `steps`
 
-| Type ID | Shape | Main fields | Continues? | Fitbit Air |
-| --- | --- | --- | --- | --- |
-| **`steps`** | interval | `count` | Yes (phone) | Yes |
-| `distance` | interval | distance | Yes (phone) | Yes |
-| `active-minutes` | interval | active minutes | Yes | Yes |
-| `activity-level` | interval | activity level | Yes | Yes |
-| `active-energy-burned` | interval | activity calories | Yes | Yes |
-| `active-zone-minutes` | interval | active zone minutes | No | Very likely (calculated from heart rate; not listed) |
-| `sedentary-period` | interval | sedentary period | No | Yes |
-| `exercise` | session | workout details | No | Yes (auto-detected) |
-| **`heart-rate`** | sample (every few seconds) | bpm | No | Yes (every 2 s) |
-| **`daily-resting-heart-rate`** | daily | `beatsPerMinute`, calculation method | No | Yes |
-| **`heart-rate-variability`** | sample (during sleep) | RMSSD ms, high/low-frequency power | No | Yes |
-| **`daily-heart-rate-variability`** | daily | average HRV ms, deep-sleep RMSSD, non-REM heart rate, entropy | No | Yes |
-| `time-in-heart-rate-zone` | interval | time per zone | No | Yes |
-| `daily-heart-rate-zones` | daily | zone thresholds | No | Yes |
-| **`oxygen-saturation`** | sample (overnight) | SpO2 | No | Yes |
-| **`daily-oxygen-saturation`** | daily | SpO2 | No | Yes |
-| `daily-respiratory-rate` | daily | breathing rate | No | Yes |
-| `respiratory-rate-sleep-summary` | sample | breathing rate during sleep | No | Yes |
-| **`daily-sleep-temperature-derivations`** | daily | nightly skin temperature °C, baseline, 30-day std dev | No | Yes |
-| **`sleep`** | session | interval, stage timeline, stage summary (minutes and count), minutes asleep/awake/to fall asleep, short awakenings, main-sleep flag | No | Yes (stages) |
-| `total-calories`, `calories-in-heart-rate-zone` | rollUp only | calories per window | Yes | Yes |
-| `floors` | rollUp only | floors climbed | No | **No** (no barometric altimeter) |
-| `altitude` | interval | altitude | No | **No** (no altimeter; may come from phone GPS during workouts) |
-| `vo2-max`, `run-vo2-max`, `daily-vo2-max` | occasional | cardio fitness | No | **Not listed** (may still be estimated from heart rate and phone GPS runs) |
-| `swim-lengths-data` | interval | swim lengths | No | **Not listed** (water resistant to 5 ATM, but swim tracking isn't mentioned) |
-| `weight`, `height` | manual entries | profile values | n/a | n/a |
+| Type ID | In scope | Shape | Main fields | Continues? | Fitbit Air |
+| --- | --- | --- | --- | --- | --- |
+| `steps` | Yes | interval | `count` | Yes (phone) | Yes |
+| `distance` | No | interval | distance | Yes (phone) | Yes |
+| `active-minutes` | No | interval | active minutes | Yes | Yes |
+| `activity-level` | No | interval | activity level | Yes | Yes |
+| `active-energy-burned` | No | interval | activity calories | Yes | Yes |
+| `active-zone-minutes` | No | interval | active zone minutes | No | Very likely (calculated from heart rate; not listed) |
+| `sedentary-period` | No | interval | sedentary period | No | Yes |
+| `exercise` | No | session | workout details | No | Yes (auto-detected) |
+| `heart-rate` | Yes | sample (every few seconds) | bpm | No | Yes (every 2 s) |
+| `daily-resting-heart-rate` | Yes | daily | `beatsPerMinute`, calculation method | No | Yes |
+| `heart-rate-variability` | Yes | sample (during sleep) | RMSSD ms, high/low-frequency power | No | Yes |
+| `daily-heart-rate-variability` | Yes | daily | average HRV ms, deep-sleep RMSSD, non-REM heart rate, entropy | No | Yes |
+| `time-in-heart-rate-zone` | No | interval | time per zone | No | Yes |
+| `daily-heart-rate-zones` | No | daily | zone thresholds | No | Yes |
+| `oxygen-saturation` | Yes | sample (overnight) | SpO2 | No | Yes |
+| `daily-oxygen-saturation` | Yes | daily | SpO2 | No | Yes |
+| `daily-respiratory-rate` | No | daily | breathing rate | No | Yes |
+| `respiratory-rate-sleep-summary` | No | sample | breathing rate during sleep | No | Yes |
+| `daily-sleep-temperature-derivations` | Yes | daily | nightly skin temperature °C, baseline, 30-day std dev | No | Yes |
+| `sleep` | Yes | session | interval, stage timeline, stage summary (minutes and count), minutes asleep/awake/to fall asleep, short awakenings, main-sleep flag | No | Yes (stages) |
+| `total-calories`, `calories-in-heart-rate-zone` | No | rollUp only | calories per window | Yes | Yes |
+| `floors` | No | rollUp only | floors climbed | No | **No** (no barometric altimeter) |
+| `altitude` | No | interval | altitude | No | **No** (no altimeter; may come from phone GPS during workouts) |
+| `vo2-max`, `run-vo2-max`, `daily-vo2-max` | No | occasional | cardio fitness | No | **Not listed** (may still be estimated from heart rate and phone GPS runs) |
+| `swim-lengths-data` | No | interval | swim lengths | No | **Not listed** (water resistant to 5 ATM, but swim tracking isn't mentioned) |
+| `weight`, `height` | No | manual entries | profile values | n/a | n/a |
 
 - **RollUp only:** `floors` (also `reconcile`), `total-calories`, `calories-in-heart-rate-zone`. No `list`.
 - **Not available in any API:** Fitbit's sleep score, readiness, stress, cardio load and energy score. They're calculated in the Fitbit app (several are Premium) and were never in the legacy Fitbit Web API either ([sleep docs](https://dev.fitbit.com/build/reference/web-api/sleep/get-sleep-log-by-date/), [forum](https://community.fitbit.com/t5/Web-API-Development/Web-API-for-Readiness-Score-and-Stress-data/m-p/5579874)). A Fitbit data export (Google Takeout) may include them; unverified. A sleep score could be approximated from the sleep, heart rate and HRV fields.
