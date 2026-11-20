@@ -3,7 +3,7 @@
 All accepted 2026-11-20. Add new ones at the end; mark replaced ones "Superseded by Dn".
 
 ## D1: Minimal-cost serverless
-SSM Parameter Store, Lambda function URLs, Terraform state in S3 with native locking, serverless only, one environment tested via PRs. Function URLs need their own auth; flag anything that adds cost.
+SSM Parameter Store, Lambda function URLs, Terraform state in S3 with native locking, serverless only, one environment tested via PRs. Target: whole project under $1/month. Function URLs need their own auth; flag anything that adds cost.
 
 ## D2: Rolling-window ingestion
 The device can sync days late, so each run re-fetches the last 72h (configurable per data type) and `MERGE INTO` on a natural key removes duplicates. The DynamoDB watermark records last run and newest data point, for backfill and freshness checks.
@@ -21,7 +21,7 @@ DuckDB `MERGE INTO` for transforms, proven by a spike at the start of step 05; P
 `infra/bootstrap/` (state bucket, GitHub OIDC role trusting only this repo) is applied once from AWS CloudShell, then its state moves into the bucket. Everything after runs in GitHub Actions; the role ARN lives in a GitHub secret.
 
 ## D7: Monitoring
-Error alarms on Lambdas and Step Functions, a daily 24h no-new-data check, all emailed via SNS (address in config). $2/month AWS Budgets alert. 14-day log retention.
+Error alarms on Lambdas and Step Functions, a daily 24h no-new-data check, all emailed via SNS (address in config). $1/month AWS Budgets alert (free). 14-day log retention.
 
 ## D8: Region
 `ap-southeast-2`, with `us-east-1` only where AWS requires it (CloudFront, Lambda@Edge).
