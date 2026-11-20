@@ -33,6 +33,7 @@ Personal, single-user health data insights pipeline on AWS: Fitbit Air (Google H
 - Use plan mode for new features; wait for my approval before coding
 - Small, testable changes with tests. I use Claude Code both on my laptop and in the cloud (web/phone): GitHub is the source of truth, so commit and push all work, never rely on local-only files or state, and deploy only through GitHub Actions (no local AWS credentials needed)
 - When we make a design decision, add an ADR and update `docs/architecture.md`, not this file
+- Keep the repo lean: only files that are needed, succinct code and docs, no index/README/template files that repeat what's already there. I should be able to read through the repo without being overwhelmed
 
 ## Current status
 

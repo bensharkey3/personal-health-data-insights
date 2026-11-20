@@ -1,21 +1,9 @@
-# 0002: Rolling-window ingestion with downstream dedupe
+# 0002: Rolling-window ingestion
 
-- **Status:** Accepted
-- **Date:** 2026-11-20
+Accepted, 2026-11-20
 
-## Context
+**Context:** The device can sync days late, so fetching from "newest data point minus 1 hour" would miss data.
 
-The device can sync hours or days after data was recorded. A watermark based on the newest data timestamp (minus 1 hour) would skip records that arrive late with older timestamps.
+**Decision:** Each run re-fetches a rolling lookback (72 hours to start, configurable per data type). The DynamoDB watermark records the last run and newest data point, for backfill and freshness checks. `MERGE INTO` on a natural key removes duplicates.
 
-## Decision
-
-- Every ingestion run re-fetches a fixed rolling lookback (start with 72 hours, configurable per data type), regardless of the watermark.
-- The watermark (DynamoDB, one item per source and data type) records the last successful run and the newest data point seen; it is used for backfill and monitoring, not to narrow the fetch window.
-- Raw writes stay immutable; duplicates are removed by `MERGE INTO` on a natural key in the transform step.
-
-## Consequences
-
-- Late-synced data is picked up as long as it arrives within the lookback.
-- More API calls and overlapping raw files than a precise watermark; volumes are tiny, so cost is negligible.
-- Every curated table needs a well-defined natural key for dedupe.
-- Gaps longer than the lookback need a manual backfill run.
+**Consequences:** Overlapping raw files (negligible cost). Every curated table needs a natural key. Gaps longer than the lookback need a manual backfill.

@@ -1,19 +1,9 @@
-# 0010: Lambda packaging with zips and a shared layer
+# 0010: Lambda packaging
 
-- **Status:** Accepted
-- **Date:** 2026-11-20
+Accepted, 2026-11-20
 
-## Context
+**Context:** DuckDB downloads extensions at runtime, which Lambda doesn't allow.
 
-Lambdas need DuckDB (and its Iceberg/httpfs/aws extensions), Plotly and boto3. DuckDB normally downloads extensions at runtime into a home directory, which Lambda doesn't allow.
+**Decision:** One zip per function, built by `uv` in CI. A shared layer holds DuckDB and its pre-downloaded extensions. Plotly ships only with the dashboard function.
 
-## Decision
-
-- Each function is a small zip built by `uv` in CI.
-- One shared Lambda layer holds DuckDB and its pre-downloaded extensions; functions point `extension_directory` at the layer path.
-- Plotly ships only with the dashboard function.
-
-## Consequences
-
-- No ECR storage costs; stays within the 250 MB unzipped limit.
-- The layer is versioned and rebuilt when the DuckDB version changes; extensions must match the DuckDB version and Lambda's architecture.
+**Consequences:** No ECR cost. The layer is rebuilt when DuckDB's version changes.
