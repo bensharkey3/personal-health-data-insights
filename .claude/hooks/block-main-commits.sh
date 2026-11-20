@@ -29,7 +29,8 @@ if [[ $branch == "main" && -z $branch_created ]]; then
 fi
 
 # Explicit pushes to main from any branch, e.g. "git push origin main" or "HEAD:main".
-if [[ -n $is_push ]] && grep -Eq 'git +(-C +[^ ]+ +)?push[^"]*[ :]main([ "]|$)' <<<"$input"; then
+# Stays within one command: stops at ; & | and the JSON-escaped newline (\n).
+if [[ -n $is_push ]] && grep -Eq 'git +(-C +[^ ]+ +)?push[^"&;|\\]*[ :]main([ "&;|\\]|$)' <<<"$input"; then
   block "the push targets main."
 fi
 
