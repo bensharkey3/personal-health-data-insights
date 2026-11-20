@@ -66,9 +66,10 @@ resource "aws_s3_bucket_policy" "state" {
 
 # --- GitHub OIDC ---
 
-resource "aws_iam_openid_connect_provider" "github" {
-  url            = "https://token.actions.githubusercontent.com"
-  client_id_list = ["sts.amazonaws.com"]
+# An AWS account can have only one provider per URL, and this one already exists for other
+# projects, so it's looked up rather than created or managed here.
+data "aws_iam_openid_connect_provider" "github" {
+  url = "https://token.actions.githubusercontent.com"
 }
 
 # Trust policy for a role GitHub Actions can assume, limited to this repo and one "sub" claim.
@@ -81,7 +82,7 @@ data "aws_iam_policy_document" "trust" {
     actions = ["sts:AssumeRoleWithWebIdentity"]
     principals {
       type        = "Federated"
-      identifiers = [aws_iam_openid_connect_provider.github.arn]
+      identifiers = [data.aws_iam_openid_connect_provider.github.arn]
     }
     condition {
       test     = "StringEquals"
