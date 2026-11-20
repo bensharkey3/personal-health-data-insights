@@ -40,6 +40,7 @@ jobs:
     defaults:
       run:
         working-directory: infra
+        shell: bash # adds -o pipefail, so a failing plan in "plan | tee" fails the step
     env:
       TF_VAR_alert_email: ${{ secrets.ALERT_EMAIL }}
     steps:
