@@ -28,7 +28,7 @@ Weather ──schedule──────────────┘             
 ## Processing and serving
 
 - **Transform:** a Lambda where DuckDB flattens raw JSON and merges it into Iceberg. A weekly Athena `OPTIMIZE` / `VACUUM` job compacts files and expires snapshots, which DuckDB can't do (D5).
-- **Morning chain:** Step Functions, triggered when a sleep session arrives: merge the day → compare metrics to a 30-day baseline → Bedrock summary → build static HTML.
+- **Morning chain:** Step Functions, triggered when a sleep session arrives: merge the day → compare metrics to a 30-day baseline → readiness light and illness flag → Bedrock summary → build static HTML → push the readiness line to my phone. A weekly run turns a few precomputed correlations (e.g. screen time vs sleep) into plain-sentence insights.
 - **Serving:** S3 + CloudFront in `ap-southeast-2` / `us-east-1` (D8). A CloudFront Function checks an interim credential until Cognito login in step 09 (D4).
 
 ## Operations
@@ -38,4 +38,4 @@ Weather ──schedule──────────────┘             
 
 ## Open questions
 
-- Step 08: the chain is triggered by a sleep session, and there's no new sleep data until a Fitbit Air (D11), so start on a daily schedule? Timed fallback once sleep data exists? Summary delivery channel (dashboard only, or also email/push)? What data goes to Bedrock (aggregates only, or with context)?
+- Step 08: the chain is triggered by a sleep session, and there's no new sleep data until a Fitbit Air (D11), so start on a daily schedule? Timed fallback once sleep data exists? Push channel (SNS email is free; a phone push app adds a dependency)? What data goes to Bedrock (aggregates only, or with context)?
