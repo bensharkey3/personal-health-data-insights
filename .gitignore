@@ -15,3 +15,6 @@ __pycache__/
 .env*
 client_secret*.json
 token.json
+
+# Build output (Lambda zips)
+infra/build/
