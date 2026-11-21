@@ -81,7 +81,7 @@ The pattern held for all 28 list types tried: `<type_snake>.interval.civil_start
 ## Consistency: list vs rollUp
 
 - **Interval types (e.g. steps) are unstable with `list` and `reconcile`:** repeated identical requests for the same past day returned the same step total chopped into different intervals (one day ranged from about 500 to 1,700 Fitbit records). There's no stable record to key on. Google doesn't document this.
-- **`rollUp` is stable:** fixed windows (60 s, 15 min, 1 h) returned identical windows and totals on every run. Windows with no data are omitted. Response: `rollupDataPoints[]` with `startTime`, `endTime` and e.g. `steps.countSum`. So interval types are ingested with `rollUp` (D12).
+- **`rollUp` is stable:** fixed windows (60 s, 15 min, 1 h) returned identical windows and totals on every run. Windows with no data were omitted in early probes, but by November 2026 every window in the range comes back (a day is 1,440 at 60 s), so the transform drops empty ones. Response: `rollupDataPoints[]` with `startTime`, `endTime` and e.g. `steps.countSum`. So interval types are ingested with `rollUp` (D12).
 - **Samples, daily and session types were stable with `list`** (e.g. `heart-rate` returned the same 35,230 readings every run).
 - `rollUp` body: `{"range": {"startTime", "endTime"}, "windowSize": "60s", "pageSize": 10000}`; `dailyRollUp` uses civil dates and `windowSizeDays`. Both take an optional `dataSourceFamily`.
 
@@ -115,7 +115,7 @@ Measured on one day of `heart-rate`:
 | 1 page (5,000) | 1.8 MB | 9 MB | 0.04 MB |
 | Whole day (35k) | 12 MB | 64 MB | 0.25 MB |
 
-- Write each page to S3 as its own gzipped file as it arrives, rather than collecting a day first (the POC's approach). Memory stays around 10–20 MB, so a 128–256 MB Lambda is enough; confirm from the Lambda's max-memory log line.
+- Stream pages into one gzipped object per type-day as they arrive, rather than collecting a day first (the POC's approach). The Lambda peaked at 127 MB (mostly the Python runtime and boto3) for a full day of all 11 types in 37 s, so 256 MB is enough.
 - Gzip shrinks this data about 50x, so the full history is a few hundred MB in S3. DuckDB reads `.json.gz` directly.
 - Backfill one day (or one type-day) per invocation to stay well under Lambda's 15-minute limit; most time is spent waiting on the API.
 - Rate limits weren't hit during probing, but haven't been measured either. Backfill should stay slow (D2).

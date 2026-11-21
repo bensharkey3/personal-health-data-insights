@@ -72,8 +72,8 @@ resource "aws_lambda_function" "google_health" {
   handler          = "ingest.google_health.handler.handler"
   filename         = data.archive_file.google_health.output_path
   source_code_hash = data.archive_file.google_health.output_base64sha256
-  memory_size      = 256 # one page at a time needs ~20 MB; check "Max Memory Used" in the logs
-  timeout          = 300 # a day of all types is ~30 s of API calls
+  memory_size      = 256 # a full day peaked at 127 MB ("Max Memory Used" in the logs)
+  timeout          = 300 # a day of all types took 37 s
   environment {
     variables = { RAW_BUCKET = aws_s3_bucket.raw.id }
   }
