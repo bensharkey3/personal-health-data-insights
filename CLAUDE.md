@@ -22,7 +22,7 @@ Personal, single-user health data insights pipeline on AWS: Fitbit Air (Google H
 ## Rules
 
 - Never run `terraform apply` or `destroy` without my explicit approval
-- **HARD RULE — this repo is public:** no personal data ever goes in it (no health data, sample exports, real test fixtures, locations or home/office coordinates, AWS account IDs, endpoint URLs or dashboard links); tests use synthetic data only. Never commit secrets, tokens or .env files; secrets live in SSM Parameter Store (SecureString)
+- **HARD RULE — this repo is public:** no personal data ever goes in it (no health data, sample exports, real test fixtures, locations or home/office coordinates, AWS account IDs, endpoint URLs or dashboard links); tests use synthetic data only. Actions logs are public too: identifiers go in secrets (auto-masked) or `::add-mask::`, never in plain variables or output. Never commit secrets, tokens or .env files; secrets live in SSM Parameter Store (SecureString)
 - Personal health and location data: no public buckets, encryption on, least-privilege IAM per Lambda
 - Python 3.12 with type hints; ask before adding a dependency or an AWS service
 - Raw S3 data is immutable; all pipelines idempotent; timestamps in UTC
