@@ -47,3 +47,9 @@ Only core metrics are in scope: heart rate (`heart-rate`, `daily-resting-heart-r
 
 ## D15: Secrets created by hand, not by Terraform
 SSM SecureString parameters (e.g. Google OAuth tokens) are created once with `aws ssm put-parameter` in CloudShell, under `/phdi/`. Terraform only grants Lambdas read access to them by name. If Terraform managed them, their values would be stored in the state file and be readable by the PR plan role.
+
+## D16: Consent screen published, not in Testing
+Google expires refresh tokens after 7 days while an External consent screen is in Testing mode, which would break unattended ingestion. The app is published (In production) but never submitted for verification: as its only user, I just click past the "unverified app" warning once at sign-in.
+
+## D17: Steps raw files cover the UTC day
+`rollUp` only accepts UTC timestamps, so steps are pulled for the UTC day and `dt` is that UTC date. `list` types filter on local (civil) time, so their `dt` is the local day. The transform derives `local_date` for steps from the window times, so the dashboard still groups by local day (D3).

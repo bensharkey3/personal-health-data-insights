@@ -6,7 +6,11 @@ requires-python = ">=3.12,<3.13"
 dependencies = []
 
 [dependency-groups]
-dev = ["pytest", "ruff"]
+dev = [
+    "boto3>=1.44.8",
+    "pytest",
+    "ruff",
+]
 
 [tool.ruff]
 line-length = 100
@@ -17,3 +21,4 @@ select = ["E", "F", "I", "UP", "B"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["src"] # so tests import ingest.* the way Lambda does

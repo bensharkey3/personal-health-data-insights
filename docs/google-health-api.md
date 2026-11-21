@@ -1,12 +1,13 @@
 # Google Health API: POC findings
 
-What we learnt from `src/ingest/google_health/poc.py`, probe scripts run against my account, and the [official docs](https://developers.google.com/health) (November 2026). Use this when building step 03 ingestion. No data values are recorded here.
+What we learnt from the POC (now `client.py`), probe scripts run against my account, and the [official docs](https://developers.google.com/health) (November 2026). Use this when building step 03 ingestion. No data values are recorded here.
 
 ## Access
 
 - Base URL: `https://health.googleapis.com/v4/users/me/dataTypes/<type>/dataPoints`
 - OAuth "Desktop app" client with PKCE and a loopback redirect; three read-only scopes: `googlehealth.activity_and_fitness`, `googlehealth.health_metrics_and_measurements`, `googlehealth.sleep`.
-- Consent screen is External in Testing mode, so refresh tokens may expire after 7 days. This needs solving before scheduled ingestion (step 03).
+- Consent screen is External and published (D16): in Testing mode, refresh tokens expire after 7 days.
+- `rollUp` ranges must be UTC timestamps (`...Z` or with an offset); civil times are rejected (D17).
 - Methods per type: `list` (GET `.../dataPoints`), `reconcile` (GET `.../dataPoints:reconcile`, merges sources), `rollUp` and `dailyRollUp` (POST, totals over fixed windows). The [data types page](https://developers.google.com/health/data-types) lists which each type supports.
 - Data from both phone and old Fitbit comes through the same API; `dataSource` on each record says which (`platform` is `FITBIT` or `HEALTH_CONNECT`, plus device form factor and manufacturer).
 
