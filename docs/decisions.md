@@ -53,3 +53,6 @@ Google expires refresh tokens after 7 days while an External consent screen is i
 
 ## D17: Steps raw files cover the UTC day
 `rollUp` only accepts UTC timestamps, so steps are pulled for the UTC day and `dt` is that UTC date. `list` types filter on local (civil) time, so their `dt` is the local day. The transform derives `local_date` for steps from the window times, so the dashboard still groups by local day (D3).
+
+## D18: Local AWS access for running and inspecting
+Manual runs and checks (invoking a Lambda, reading logs, listing S3) are done by Claude Code on the laptop through `aws login`, which gives short-lived credentials from the console sign-in, with no stored keys. This saves copy-pasting into CloudShell. Deploys still go only through GitHub Actions with approval. Secrets are still typed in by hand (D15). Cloud sessions don't have this access and fall back to CloudShell.
