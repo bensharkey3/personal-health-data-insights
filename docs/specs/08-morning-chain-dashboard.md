@@ -12,7 +12,7 @@
 - Readiness: a green/amber/red light with a one-sentence reason, from HRV, resting HR and sleep vs baseline, at the top of the dashboard. Every metric is shown with its usual range, not as a bare number, so a glance says whether today is normal
 - Illness warning: flagged in the summary when skin temperature, resting HR and respiratory rate are all above baseline together, which often shows a day or two before feeling ill
 - Push the readiness line and any illness flag to my phone, so I don't have to open the dashboard
-- Weekly insights: a weekly EventBridge run precomputes a few personal correlations (screen time vs sleep, office vs home days, steps vs deep sleep, weather vs sleep) and Bedrock writes them as plain sentences. Only pairs whose data exists are included
+- Personal correlations in plain sentences (weekly insights): a weekly EventBridge run precomputes a few correlations (screen time vs sleep, office vs home days, steps vs deep sleep, weather vs sleep) and Bedrock writes them as sentences, e.g. "After nights with over an hour of screen time after 10 pm, you slept 25 minutes less." Shown on the dashboard below the readiness light. Only pairs whose data exists are included, and only differences big enough to mean something
 
 ## Done when
 
