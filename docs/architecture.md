@@ -19,8 +19,8 @@ Weather ──schedule──────────────┘             
 
 ## Ingestion and storage
 
-- **Ingestion:** each run re-fetches the last 72h (configurable per data type), so data that syncs late isn't missed. A DynamoDB watermark records the last run and newest data point for backfill and freshness checks. Backoff on 429/5xx, concurrency 1 (D2). The full-history backfill and ongoing loads start only once everything is built, in step 10 (D14).
-- **Raw:** S3 `raw/<source>/<data_type>/dt=YYYY-MM-DD/`, one gzipped JSON Lines object per type-day holding the API pages as returned. `dt` is the local day requested, or the UTC day for steps (D17). Immutable JSON; block public access, encryption and versioning on (D1).
+- **Ingestion:** a DynamoDB watermark records each type's last run and newest data point. Each run re-fetches from one day before that newest point, capped at 7 days, so data that syncs days late isn't missed (D2, D20). A backfill mode loads a given range of up to 14 days per run. Backoff on 429/5xx, concurrency 1. The full-history backfill and ongoing loads start only once everything is built, in step 10 (D14).
+- **Raw:** S3 `raw/<source>/<data_type>/dt=YYYY-MM-DD/run=<UTC timestamp>.jsonl.gz`, one gzipped JSON Lines object per type-day and run, holding the API pages as returned. Runs never overwrite, and empty type-days write nothing (D19). `dt` is the local day requested, or the UTC day for steps (D17). Block public access, encryption and versioning on (D1).
 - **Curated:** one Iceberg table per data type in Glue, partitioned by month. Each has a natural key so `MERGE INTO` removes the duplicates the overlapping fetches create; interval types use fixed rollUp windows so the key is stable (D2, D5, D12).
 - **Time:** timestamps in UTC plus a `local_date` column; sleep counts toward the date it ends (D3).
 - **Retention:** data kept indefinitely; operational leftovers expire (D9).
@@ -34,7 +34,7 @@ Weather ──schedule──────────────┘             
 ## Operations
 
 - **Infra/CI:** Terraform in `infra/`. A one-off CloudShell bootstrap creates the state bucket and GitHub OIDC role; after that, GitHub Actions plans on PRs and applies on merge to `main` after manual approval (D6). One zip per Lambda plus a shared DuckDB layer (D10).
-- **Monitoring:** error alarms, a daily freshness check and a $1/month budget alert, all by email; 14-day log retention (D7).
+- **Monitoring:** by email through the `phdi-alerts` SNS topic: a Lambda error alarm, a no-run-in-24h freshness alarm (muted until step 10) and a $1/month budget alert; 14-day log retention (D7).
 
 ## Open questions
 
