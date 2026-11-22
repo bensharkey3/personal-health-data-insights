@@ -5,7 +5,9 @@ import json
 import urllib.parse
 from collections.abc import Iterator
 from datetime import UTC, date, datetime, time, timedelta
-from urllib.request import Request, urlopen
+from urllib.request import Request
+
+from common import retry
 
 TOKEN_URL = "https://oauth2.googleapis.com/token"
 API = "https://health.googleapis.com/v4/users/me/dataTypes"
@@ -26,10 +28,8 @@ LIST_TYPES = {
 ROLLUP_TYPES = ("steps",)  # interval types use rollUp in fixed windows (D12)
 TYPES = (*LIST_TYPES, *ROLLUP_TYPES)
 
-
-def _call(req: Request) -> dict:
-    with urlopen(req, timeout=60) as resp:
-        return json.load(resp)
+# Days re-fetched before each type's newest data point (D20). Raise one if a type is revised later.
+OVERLAP_DAYS = dict.fromkeys(TYPES, 1)
 
 
 def _auth(token: str) -> dict[str, str]:
@@ -43,7 +43,9 @@ def access_token(client_id: str, client_secret: str, refresh_token: str) -> str:
         "refresh_token": refresh_token,
         "grant_type": "refresh_token",
     }
-    return _call(Request(TOKEN_URL, data=urllib.parse.urlencode(form).encode()))["access_token"]
+    return retry.call(Request(TOKEN_URL, data=urllib.parse.urlencode(form).encode()))[
+        "access_token"
+    ]
 
 
 def day_filter(kind: str, day: date) -> str:
@@ -63,7 +65,7 @@ def list_pages(kind: str, day: date, token: str) -> Iterator[dict]:
     query = {"filter": day_filter(kind, day), "pageSize": 25 if kind == "sleep" else 5000}
     while True:
         qs = urllib.parse.urlencode(query, quote_via=urllib.parse.quote)  # spaces as %20
-        body = _call(Request(f"{API}/{kind}/dataPoints?{qs}", headers=_auth(token)))
+        body = retry.call(Request(f"{API}/{kind}/dataPoints?{qs}", headers=_auth(token)))
         yield body
         if not (page := body.get("nextPageToken")):  # := assigns and tests in one step
             return
@@ -84,7 +86,9 @@ def rollup_pages(kind: str, day: date, token: str) -> Iterator[dict]:
     }
     while True:
         data = json.dumps(payload).encode()
-        body = _call(Request(f"{API}/{kind}/dataPoints:rollUp", data=data, headers=_auth(token)))
+        body = retry.call(
+            Request(f"{API}/{kind}/dataPoints:rollUp", data=data, headers=_auth(token))
+        )
         yield body
         if not (page := body.get("nextPageToken")):
             return
@@ -97,3 +101,30 @@ def pages(kind: str, day: date, token: str) -> Iterator[dict]:
 
 def count(page: dict) -> int:
     return len(page.get("dataPoints", page.get("rollupDataPoints", [])))
+
+
+def _camel(kind: str) -> str:
+    """Records hold one object named after the type in camelCase: heart-rate -> heartRate."""
+    first, *rest = kind.split("-")
+    return first + "".join(w.title() for w in rest)
+
+
+def _point_time(kind: str, point: dict) -> str | None:
+    if kind in ROLLUP_TYPES:
+        return point.get("endTime")
+    obj, shape = point.get(_camel(kind), {}), LIST_TYPES[kind]
+    if shape == "sample":
+        return obj.get("sampleTime", {}).get("physicalTime")
+    if shape == "session":
+        return obj.get("interval", {}).get("endTime")
+    d = obj.get("date")  # daily: a civil date, as {year, month, day} or "YYYY-MM-DD"
+    if isinstance(d, dict):
+        d = f"{d['year']:04}-{d['month']:02}-{d['day']:02}"
+    return f"{d}T00:00:00Z" if d else None
+
+
+def newest(kind: str, page: dict) -> str | None:
+    """UTC time of the newest point in a page (midnight for daily types), or None if no point
+    has a recognisable time. Only its date is used, so second-level formats don't matter."""
+    points = page.get("dataPoints", page.get("rollupDataPoints", []))
+    return max(filter(None, (_point_time(kind, p) for p in points)), default=None)

@@ -99,6 +99,18 @@ resource "aws_s3_bucket_lifecycle_configuration" "raw" {
   }
 }
 
+# --- Alerts by email (D7). AWS emails a confirmation link once; alarms only reach me after it. ---
+
+resource "aws_sns_topic" "alerts" {
+  name = "${local.prefix}-alerts"
+}
+
+resource "aws_sns_topic_subscription" "alerts_email" {
+  topic_arn = aws_sns_topic.alerts.arn
+  protocol  = "email"
+  endpoint  = var.alert_email
+}
+
 # --- Cost guardrail (D7) ---
 
 resource "aws_budgets_budget" "monthly" {

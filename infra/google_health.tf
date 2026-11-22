@@ -1,4 +1,4 @@
-# --- Google Health ingestion Lambda (step 02: invoked by hand; scheduling comes in steps 03–04) ---
+# --- Google Health ingestion Lambda (invoked by hand until step 10 switches on loads; D14) ---
 
 locals {
   google_health_name = "${local.prefix}-google-health-ingest"
@@ -12,11 +12,28 @@ data "archive_file" "google_health" {
   type        = "zip"
   output_path = "${path.module}/build/google_health.zip"
   dynamic "source" {
-    for_each = ["ingest/google_health/client.py", "ingest/google_health/handler.py"]
+    for_each = [
+      "common/raw.py", "common/retry.py", "common/watermark.py",
+      "ingest/google_health/client.py", "ingest/google_health/handler.py",
+    ]
     content {
       content  = file("${path.module}/../src/${source.value}")
       filename = source.value
     }
+  }
+}
+
+# Watermark per source and data type (D2). Provisioned 1/1 is in the always-free tier; on-demand
+# isn't. A handful of reads and writes per run is far below one unit per second.
+resource "aws_dynamodb_table" "watermark" {
+  name           = "${local.prefix}-watermark"
+  billing_mode   = "PROVISIONED"
+  read_capacity  = 1
+  write_capacity = 1
+  hash_key       = "pk"
+  attribute {
+    name = "pk"
+    type = "S"
   }
 }
 
@@ -37,7 +54,7 @@ resource "aws_iam_role" "google_health" {
   })
 }
 
-# Least privilege: read its own secrets, write its own raw prefix, log to its own group.
+# Least privilege: read its own secrets, write its own raw prefix and watermark, log to its group.
 resource "aws_iam_role_policy" "google_health" {
   role = aws_iam_role.google_health.name
   name = local.google_health_name
@@ -57,6 +74,11 @@ resource "aws_iam_role_policy" "google_health" {
       },
       {
         Effect   = "Allow"
+        Action   = ["dynamodb:GetItem", "dynamodb:PutItem"]
+        Resource = aws_dynamodb_table.watermark.arn
+      },
+      {
+        Effect   = "Allow"
         Action   = ["logs:CreateLogStream", "logs:PutLogEvents"]
         Resource = "${aws_cloudwatch_log_group.google_health.arn}:*"
       },
@@ -73,9 +95,49 @@ resource "aws_lambda_function" "google_health" {
   filename         = data.archive_file.google_health.output_path
   source_code_hash = data.archive_file.google_health.output_base64sha256
   memory_size      = 256 # a full day peaked at 127 MB ("Max Memory Used" in the logs)
-  timeout          = 300 # a day of all types took 37 s
+  timeout          = 900 # a day of all types took 37 s; a 14-day backfill needs about 11 min
+  # One run at a time, so the API isn't hit in parallel and watermarks aren't raced (D2).
+  reserved_concurrent_executions = 1
   environment {
-    variables = { RAW_BUCKET = aws_s3_bucket.raw.id }
+    variables = {
+      RAW_BUCKET      = aws_s3_bucket.raw.id
+      WATERMARK_TABLE = aws_dynamodb_table.watermark.name
+    }
   }
   depends_on = [aws_iam_role_policy.google_health, aws_cloudwatch_log_group.google_health]
+}
+
+# --- Alarms (D7) ---
+
+resource "aws_cloudwatch_metric_alarm" "google_health_errors" {
+  alarm_name          = "${local.google_health_name}-errors"
+  alarm_description   = "The Google Health ingestion Lambda failed or timed out. See its logs."
+  namespace           = "AWS/Lambda"
+  metric_name         = "Errors"
+  dimensions          = { FunctionName = aws_lambda_function.google_health.function_name }
+  statistic           = "Sum"
+  period              = 3600
+  evaluation_periods  = 1
+  threshold           = 1
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = [aws_sns_topic.alerts.arn]
+}
+
+# Checks that ingestion ran in the last 24 hours, not that new data arrived: device-only types
+# have none until a Fitbit Air (D11). Muted until step 10 schedules the loads (D14).
+resource "aws_cloudwatch_metric_alarm" "google_health_freshness" {
+  alarm_name          = "${local.google_health_name}-freshness"
+  alarm_description   = "No Google Health ingestion run in the last 24 hours."
+  namespace           = "AWS/Lambda"
+  metric_name         = "Invocations"
+  dimensions          = { FunctionName = aws_lambda_function.google_health.function_name }
+  statistic           = "Sum"
+  period              = 86400
+  evaluation_periods  = 1
+  threshold           = 1
+  comparison_operator = "LessThanThreshold"
+  treat_missing_data  = "breaching" # no invocations means no data points at all
+  actions_enabled     = false       # true in step 10
+  alarm_actions       = [aws_sns_topic.alerts.arn]
 }

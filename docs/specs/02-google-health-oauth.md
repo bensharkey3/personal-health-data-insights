@@ -11,7 +11,7 @@
 
 ## Raw layout
 
-One object per type-day: `raw/google_health/<type>/dt=YYYY-MM-DD/pages.jsonl.gz`, gzipped JSON Lines with one API response page per line, exactly as returned. Pages stream into the gzip buffer, so memory holds one page at a time. `dt` is the local day the request covered, except steps, where it's the UTC day (D17). A rerun overwrites the same keys; versioning keeps the old copy for 30 days.
+One object per type-day: `raw/google_health/<type>/dt=YYYY-MM-DD/pages.jsonl.gz`, gzipped JSON Lines with one API response page per line, exactly as returned. Pages stream into the gzip buffer, so memory holds one page at a time. `dt` is the local day the request covered, except steps, where it's the UTC day (D17). Step 03 replaced this with run-stamped files (D19).
 
 ## Manual steps
 
