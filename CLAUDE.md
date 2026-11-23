@@ -2,7 +2,7 @@
 
 ## Project
 
-Personal, single-user health data insights pipeline on AWS: Fitbit Air (Google Health API), phone screen time and location (Tasker), weather → S3 → Iceberg → daily dashboard and AI summary. Also a learning project for modern data engineering. Minimal cost matters.
+Personal, single-user health data insights pipeline on AWS: Fitbit Air (Google Health API), phone screen time and location (Tasker), weather → S3 → Parquet → daily dashboard and AI summary. Also a learning project for modern data engineering. Minimal cost matters.
 
 ## Where things are
 
@@ -44,7 +44,7 @@ Personal, single-user health data insights pipeline on AWS: Fitbit Air (Google H
 - [x] Step 2: Google Health OAuth + pull one day of data
 - [x] Step 3: ingestion Lambda with watermark + raw S3 writes
 - [ ] Step 4: webhook subscription trigger
-- [ ] Step 5: Iceberg tables + DuckDB transforms
+- [ ] Step 5: curated Parquet + DuckDB transforms
 - [ ] Step 6: Tasker endpoints (screen time, geofences)
 - [ ] Step 7: weather
 - [ ] Step 8: morning chain, AI summary and static dashboard

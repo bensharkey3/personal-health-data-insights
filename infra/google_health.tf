@@ -80,6 +80,11 @@ resource "aws_iam_role_policy" "google_health" {
       },
       {
         Effect   = "Allow"
+        Action   = "lambda:InvokeFunction"
+        Resource = aws_lambda_function.transform.arn
+      },
+      {
+        Effect   = "Allow"
         Action   = ["logs:CreateLogStream", "logs:PutLogEvents"]
         Resource = "${aws_cloudwatch_log_group.google_health.arn}:*"
       },
@@ -101,8 +106,9 @@ resource "aws_lambda_function" "google_health" {
   reserved_concurrent_executions = 1
   environment {
     variables = {
-      RAW_BUCKET      = aws_s3_bucket.raw.id
-      WATERMARK_TABLE = aws_dynamodb_table.watermark.name
+      RAW_BUCKET         = aws_s3_bucket.raw.id
+      WATERMARK_TABLE    = aws_dynamodb_table.watermark.name
+      TRANSFORM_FUNCTION = aws_lambda_function.transform.function_name
     }
   }
   depends_on = [aws_iam_role_policy.google_health, aws_cloudwatch_log_group.google_health]

@@ -6,7 +6,7 @@
 
 - Choose a free weather API for my home location (set in SSM/config, never in this repo; record the choice in docs/decisions.md)
 - EventBridge-scheduled Lambda, daily (or hourly for weather), raw JSON to S3
-- Iceberg table for weather
+- Curated Parquet for weather
 
 ## Done when
 

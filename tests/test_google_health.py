@@ -189,6 +189,7 @@ def test_backfill_range_is_limited():
 def test_backfill_writes_run_objects_and_moves_watermark_forward_only(monkeypatch):
     monkeypatch.setenv("RAW_BUCKET", "test-bucket")
     monkeypatch.setenv("WATERMARK_TABLE", "test-table")
+    monkeypatch.setenv("TRANSFORM_FUNCTION", "transform")
     monkeypatch.setattr(client, "access_token", lambda **creds: f"tok-{len(creds)}")
     monkeypatch.setattr(handler.time, "sleep", lambda s: None)
     point = {"heartRate": {"sampleTime": {"physicalTime": "2030-01-15T08:00:00Z"}}}
@@ -205,7 +206,8 @@ def test_backfill_writes_run_objects_and_moves_watermark_forward_only(monkeypatc
     }
 
     event = {"start": "2030-01-15", "end": "2030-01-16"}
-    counts = handler.handler(event, None, ssm=FakeSSM(), s3=s3, ddb=ddb)
+    lam = FakeLambda()
+    counts = handler.handler(event, None, ssm=FakeSSM(), s3=s3, ddb=ddb, lam=lam)
 
     assert counts == dict.fromkeys(client.TYPES, 1)
     assert len(s3.objects) == 11  # one per type for the 15th; the empty 16th writes nothing
@@ -218,6 +220,10 @@ def test_backfill_writes_run_objects_and_moves_watermark_forward_only(monkeypatc
         "S": "2030-03-01T00:00:00Z"
     }
     assert ddb.items["google_health#sleep"]["last_run_utc"]["S"].endswith("Z")
+    # the transform gets only the days that had data
+    assert json.loads(lam.invokes[0]["Payload"]) == {
+        "days": dict.fromkeys(client.TYPES, ["2030-01-15"])
+    }
 
 
 # --- Webhook receiver (step 04) ---

@@ -10,6 +10,10 @@ dev = [
     "boto3>=1.44.8",
     "pytest",
     "ruff",
+    { include-group = "lambda" }, # tests import duckdb
+]
+lambda = [
+    "duckdb==2.0.1",
 ]
 
 [tool.ruff]

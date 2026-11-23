@@ -49,6 +49,11 @@ jobs:
       - uses: hashicorp/setup-terraform@v4
         with:
           terraform_wrapper: false
+      - uses: astral-sh/setup-uv@v10.4.0
+      # DuckDB layer for Lambda (arm64, Python 3.12), zipped by Terraform (D10)
+      - run: |
+          uv export --only-group lambda --no-hashes --no-emit-project > build-req.txt
+          uv pip install -r build-req.txt --target build/layer/python --python-platform aarch64-manylinux_2_28 --python-version 3.12 --only-binary :all:
       - uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ secrets.AWS_PLAN_ROLE_ARN }}

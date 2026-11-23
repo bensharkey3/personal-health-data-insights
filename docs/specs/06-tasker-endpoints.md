@@ -6,12 +6,12 @@
 
 - Lambda function URL accepting JSON from Tasker, protected by a shared secret header (secret in SSM Parameter Store)
 - Payload schemas: nightly screen-time export (per-app usage and screen sessions), geofence enter/exit events for home and office
-- Raw JSON to S3; Iceberg tables for screen time and location
+- Raw JSON to S3; curated Parquet for screen time and location
 - Tasker setup instructions documented (profiles, tasks, HTTP request)
 
 ## Done when
 
-- A night of screen time and a day of home/office events appear in their Iceberg tables
+- A night of screen time and a day of home/office events appear in their curated Parquet
 - Requests without the secret are rejected
 
 ## Out of scope
