@@ -3,7 +3,7 @@
 Single-user serverless pipeline on AWS. Data flows one way, from sources to a daily dashboard. The reasons behind each choice are in [decisions.md](decisions.md) (D1, D2, …). Nothing here may identify my location, AWS account or endpoints.
 
 ```
-Fitbit (Google Health) ─webhook─┐
+Fitbit (Google Health) ─webhook─┐   (phone steps: daily schedule)
 Tasker (phone) ──function URL───┼─▶ Ingest Lambdas ─▶ S3 raw JSON ─▶ DuckDB transform ─▶ Iceberg (Glue)
 Weather ──schedule──────────────┘                                                          │
                                        Dashboard + AI summary (CloudFront) ◀─ Morning chain ┘
@@ -13,13 +13,13 @@ Weather ──schedule──────────────┘             
 
 | Source | Data | Arrives via | Spec |
 | --- | --- | --- | --- |
-| Google Health API | Heart rate, HRV, sleep, SpO2, respiratory rate, skin temperature, steps (D13). Old Fitbit history; only steps continue from the phone until a Fitbit Air (D11) | Webhook → ingestion Lambda | 02–04 |
+| Google Health API | Heart rate, HRV, sleep, SpO2, respiratory rate, skin temperature, steps (D13). Old Fitbit history; only steps continue from the phone until a Fitbit Air (D11) | Fitbit: webhook, at most every 3 h; phone steps: daily run (D22) | 02–04 |
 | Tasker (Android) | Screen time, home/office geofence events | POST to a Lambda function URL | 06 |
 | Weather API | Daily/hourly weather | EventBridge schedule | 07 |
 
 ## Ingestion and storage
 
-- **Ingestion:** a DynamoDB watermark records each type's last run and newest data point. Each run re-fetches from one day before that newest point, capped at 7 days, so data that syncs days late isn't missed (D2, D20). A backfill mode loads a given range of up to 14 days per run. Backoff on 429/5xx, concurrency 1. The full-history backfill and ongoing loads start only once everything is built, in step 10 (D14).
+- **Ingestion:** a DynamoDB watermark records each type's last run and newest data point. Each run re-fetches from one day before that newest point, capped at 7 days, so data that syncs days late isn't missed (D2, D20). A backfill mode loads a given range of up to 14 days per run. Backoff on 429/5xx, concurrency 1. Runs start from a Google Health webhook for Fitbit device types (at most once per 3 hours) and a daily 04:00 schedule that picks up phone steps (D22). The full-history backfill waits for step 10 (D14).
 - **Raw:** S3 `raw/<source>/<data_type>/dt=YYYY-MM-DD/run=<UTC timestamp>.jsonl.gz`, one gzipped JSON Lines object per type-day and run, holding the API pages as returned. Runs never overwrite, and empty type-days write nothing (D19). `dt` is the local day requested, or the UTC day for steps (D17). Block public access, encryption and versioning on (D1).
 - **Curated:** one Iceberg table per data type in Glue, partitioned by month. Each has a natural key so `MERGE INTO` removes the duplicates the overlapping fetches create; interval types use fixed rollUp windows so the key is stable (D2, D5, D12).
 - **Time:** timestamps in UTC plus a `local_date` column; sleep counts toward the date it ends (D3).
@@ -34,7 +34,7 @@ Weather ──schedule──────────────┘             
 ## Operations
 
 - **Infra/CI:** Terraform in `infra/`. A one-off CloudShell bootstrap creates the state bucket and GitHub OIDC role; after that, GitHub Actions plans on PRs and applies on every merge to `main`, with no separate approval while in development (D6, D21). One zip per Lambda plus a shared DuckDB layer (D10).
-- **Monitoring:** by email through the `phdi-alerts` SNS topic: a Lambda error alarm, a no-run-in-24h freshness alarm (muted until step 10) and a $1/month budget alert; 14-day log retention (D7).
+- **Monitoring:** by email through the `phdi-alerts` SNS topic: a Lambda error alarm, a no-run-in-24h freshness alarm and a $1/month budget alert; 14-day log retention (D7).
 
 ## Open questions
 

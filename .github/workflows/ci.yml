@@ -43,6 +43,7 @@ jobs:
         shell: bash # adds -o pipefail, so a failing plan in "plan | tee" fails the step
     env:
       TF_VAR_alert_email: ${{ secrets.ALERT_EMAIL }}
+      TF_VAR_time_zone: ${{ secrets.TIME_ZONE }}
     steps:
       - uses: actions/checkout@v7
       - uses: hashicorp/setup-terraform@v4
@@ -56,6 +57,7 @@ jobs:
       - run: echo "::add-mask::$(aws sts get-caller-identity --query Account --output text)"
       - run: terraform init -input=false -backend-config="bucket=${{ secrets.TF_STATE_BUCKET }}"
       - run: echo "::add-mask::$(terraform output -raw raw_bucket 2>/dev/null)"
+      - run: echo "::add-mask::$(aws lambda get-function-url-config --function-name phdi-google-health-webhook --query FunctionUrl --output text 2>/dev/null)"
       - run: terraform plan -input=false -no-color -lock-timeout=60s | tee plan.txt
       - run: |
           { echo '### Terraform plan'; echo '```'; grep -E '^(Plan:|No changes|  [#+~-])' plan.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
