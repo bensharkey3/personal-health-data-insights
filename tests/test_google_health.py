@@ -263,9 +263,10 @@ class FakeLambda:
 
 @pytest.fixture
 def hook(monkeypatch):
+    from common import auth
     from ingest.google_health import webhook
 
-    monkeypatch.setattr(webhook, "_secret", None)
+    monkeypatch.setattr(auth, "_cache", {})
     monkeypatch.setenv("WATERMARK_TABLE", "wm")
     monkeypatch.setenv("INGEST_FUNCTION", "ingest")
     ddb, lam = FakeCooldownDDB(), FakeLambda()

@@ -4,6 +4,7 @@ merge is needed; rebuilding the same month twice gives the same file.
 
 Event {"days": {"<type>": ["YYYY-MM-DD", ...]}}: from ingestion, rebuilds the months touched.
 Event {"start": "YYYY-MM", "end": "YYYY-MM"}: rebuilds those months for every type.
+Event {"source": "tasker"}: rebuilds the Tasker tables from all their raw files (D24).
 Logs counts only, never values."""
 
 import os
@@ -13,7 +14,7 @@ from datetime import date
 import boto3
 import duckdb
 
-from transform import google_health
+from transform import google_health, tasker
 
 SOURCE = "google_health"
 
@@ -46,16 +47,44 @@ def latest_keys(s3, bucket: str, kind: str, month: str) -> list[str]:
     return sorted(newest.values())
 
 
-def build(kind: str, files: list[str], out: str) -> int:
+def write(sql: str, out: str) -> int:
     con = duckdb.connect()
-    con.execute(f"COPY ({google_health.query(kind, files)}) TO '{out}' (FORMAT parquet)")
+    con.execute(f"COPY ({sql}) TO '{out}' (FORMAT parquet)")
     return con.execute(f"SELECT count(*) FROM '{out}'").fetchall()[0][0]
+
+
+def build(kind: str, files: list[str], out: str) -> int:
+    return write(google_health.query(kind, files), out)
+
+
+def download(s3, bucket: str, keys: list[str], tmp: str, ext: str) -> list[str]:
+    files = [f"{tmp}/{i}.{ext}.gz" for i in range(len(keys))]
+    for key, f in zip(keys, files, strict=True):
+        s3.download_file(bucket, key, f)
+    return files
+
+
+def rebuild_tasker(s3, bucket: str) -> dict[str, int]:
+    pages = s3.get_paginator("list_objects_v2").paginate(Bucket=bucket, Prefix="raw/tasker/")
+    keys = sorted(o["Key"] for p in pages for o in p.get("Contents", []))
+    rows = {}
+    if keys:
+        with tempfile.TemporaryDirectory() as tmp:
+            files = download(s3, bucket, keys, tmp, "csv")
+            for table in tasker.TABLES:
+                out = f"{tmp}/{table}.parquet"
+                rows[f"tasker/{table}"] = n = write(tasker.query(table, files), out)
+                s3.upload_file(out, bucket, f"curated/tasker/{table}/data.parquet")
+                print(f"tasker {table}: {n} rows from {len(keys)} batches")
+    return rows
 
 
 def handler(event: dict, context: object, s3=None) -> dict[str, int]:
     """Returns rows written per type-month. Tests pass a fake S3; Lambda passes two args."""
     s3 = s3 or boto3.client("s3")
     bucket = os.environ["RAW_BUCKET"]
+    if event.get("source") == "tasker":
+        return rebuild_tasker(s3, bucket)
     rows = {}
     for kind, todo in months(event).items():
         for month in sorted(todo):
@@ -63,9 +92,7 @@ def handler(event: dict, context: object, s3=None) -> dict[str, int]:
             if not keys:
                 continue
             with tempfile.TemporaryDirectory() as tmp:  # Lambda's /tmp; removed afterwards
-                files = [f"{tmp}/{i}.jsonl.gz" for i in range(len(keys))]
-                for key, f in zip(keys, files, strict=True):
-                    s3.download_file(bucket, key, f)
+                files = download(s3, bucket, keys, tmp, "jsonl")
                 out = f"{tmp}/data.parquet"
                 rows[f"{kind}/{month}"] = n = build(kind, files, out)
                 s3.upload_file(out, bucket, f"curated/{SOURCE}/{kind}/month={month}/data.parquet")

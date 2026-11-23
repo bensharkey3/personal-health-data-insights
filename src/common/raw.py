@@ -1,5 +1,6 @@
 """Raw S3 writer. Every run writes new objects named after the run and never overwrites, so raw data
-stays immutable; downstream MERGE removes the duplicates overlapping runs create (D19)."""
+stays immutable; the transform reads only what it needs from the duplicates overlapping runs
+create (D19, D23)."""
 
 import gzip
 import io
@@ -7,8 +8,8 @@ import json
 from datetime import date
 
 
-def key(source: str, kind: str, day: date, run: str) -> str:
-    return f"raw/{source}/{kind}/dt={day}/run={run}.jsonl.gz"
+def key(source: str, kind: str, day: date, run: str, ext: str = "jsonl") -> str:
+    return f"raw/{source}/{kind}/dt={day}/run={run}.{ext}.gz"
 
 
 class Writer:

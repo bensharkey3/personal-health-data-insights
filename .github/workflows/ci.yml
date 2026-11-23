@@ -63,6 +63,7 @@ jobs:
       - run: terraform init -input=false -backend-config="bucket=${{ secrets.TF_STATE_BUCKET }}"
       - run: echo "::add-mask::$(terraform output -raw raw_bucket 2>/dev/null)"
       - run: echo "::add-mask::$(aws lambda get-function-url-config --function-name phdi-google-health-webhook --query FunctionUrl --output text 2>/dev/null)"
+      - run: echo "::add-mask::$(aws lambda get-function-url-config --function-name phdi-tasker --query FunctionUrl --output text 2>/dev/null)"
       - run: terraform plan -input=false -no-color -lock-timeout=60s | tee plan.txt
       - run: |
           { echo '### Terraform plan'; echo '```'; grep -E '^(Plan:|No changes|  [#+~-])' plan.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
