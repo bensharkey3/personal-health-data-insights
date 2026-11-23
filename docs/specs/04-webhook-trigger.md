@@ -9,18 +9,17 @@
 - Shared-secret check on every request: Google's verification POSTs expect 201 with the secret and 401 without it, and notifications with a bad secret get 401 (Google discards them)
 - 3-hour cooldown through a conditional DynamoDB update on `google_health#webhook` in `phdi-watermark`. A skipped notification loses nothing: the next run fetches from the watermark (D20)
 - The receiver starts ingestion asynchronously with `{}` (incremental, all types) and replies 204 at once
-- EventBridge Scheduler runs ingestion with `{}` daily at 04:00 local time. The time zone is the `TIME_ZONE` GitHub secret (D3)
+- EventBridge Scheduler runs ingestion with `{}` daily at 04:00 `Australia/Melbourne` time (D3)
 - The freshness alarm is switched on now that a daily run exists
 
 ## Manual steps
 
-1. Add the `TIME_ZONE` GitHub secret (IANA name, e.g. `Area/City`) before merging.
-2. Create the secret. Its value must include the scheme, because Google sends it back verbatim:
+1. Create the secret. Its value must include the scheme, because Google sends it back verbatim:
    ```
    aws ssm put-parameter --name /phdi/google/webhook_secret --type SecureString --value "Bearer $(openssl rand -hex 32)"
    ```
-3. In the Google Cloud console, under IAM, give your Google account the Google Health API Admin role on the project.
-4. Create the subscriber. Google verifies the endpoint during this call. The URL comes from `aws lambda get-function-url-config --function-name phdi-google-health-webhook`, and the project *number* comes from the Cloud console:
+2. In the Google Cloud console, under IAM, give your Google account the Google Health API Admin role on the project.
+3. Create the subscriber. Google verifies the endpoint during this call. The URL comes from `aws lambda get-function-url-config --function-name phdi-google-health-webhook`, and the project *number* comes from the Cloud console:
    ```
    curl -X POST "https://health.googleapis.com/v4/projects/<PROJECT_NUMBER>/subscribers?subscriberId=phdi-fitbit" \
      -H "Authorization: Bearer $(gcloud auth print-access-token)" -H "Content-Type: application/json" \
@@ -31,7 +30,7 @@
           "respiratory-rate-sleep-summary", "daily-sleep-temperature-derivations"]}]}'
    ```
    To remove it: `curl -X DELETE` on `.../subscribers/phdi-fitbit`.
-5. Optional, once a Fitbit Air arrives: set the Google Health app's battery use to Restricted on Android, and check whether it then syncs only when you pull down in the app. Google documents no setting to turn off background sync.
+4. Optional, once a Fitbit Air arrives: set the Google Health app's battery use to Restricted on Android, and check whether it then syncs only when you pull down in the app. Google documents no setting to turn off background sync.
 
 ## Done when
 

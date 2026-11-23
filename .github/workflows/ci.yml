@@ -43,7 +43,6 @@ jobs:
         shell: bash # adds -o pipefail, so a failing plan in "plan | tee" fails the step
     env:
       TF_VAR_alert_email: ${{ secrets.ALERT_EMAIL }}
-      TF_VAR_time_zone: ${{ secrets.TIME_ZONE }}
     steps:
       - uses: actions/checkout@v7
       - uses: hashicorp/setup-terraform@v4

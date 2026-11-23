@@ -9,7 +9,7 @@ SSM Parameter Store, Lambda function URLs, Terraform state in S3 with native loc
 The device can sync days late, so each run re-fetches a rolling window (72h superseded by D20) and `MERGE INTO` on a natural key removes duplicates. The DynamoDB watermark records last run and newest data point, for backfill and freshness checks.
 
 ## D3: UTC plus local date
-Timestamps in UTC; curated tables add `local_date` from a time zone in config (never in the repo). Sleep belongs to the date it ends. Raw `dt=` partitions stay UTC.
+Timestamps in UTC; curated tables add `local_date` from my time zone, `Australia/Melbourne` (fine in the repo; no more specific than a city). Sleep belongs to the date it ends. Raw `dt=` partitions stay UTC.
 
 ## D4: Interim dashboard auth
 From step 08, a CloudFront Function checks a simple credential (from SSM, injected at deploy) until Cognito replaces it in step 09.
