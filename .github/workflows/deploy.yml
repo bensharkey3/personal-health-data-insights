@@ -15,7 +15,7 @@ permissions:
 jobs:
   apply:
     runs-on: ubuntu-latest
-    environment: production # waits for approval in GitHub before any step runs
+    environment: production # main only; no required reviewer while in development (D21)
     defaults:
       run:
         working-directory: infra
