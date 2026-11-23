@@ -45,7 +45,7 @@ Personal, single-user health data insights pipeline on AWS: Fitbit Air (Google H
 - [x] Step 3: ingestion Lambda with watermark + raw S3 writes
 - [ ] Step 4: webhook subscription trigger
 - [ ] Step 5: curated Parquet + DuckDB transforms
-- [ ] Step 6: Tasker endpoints (screen time, geofences)
+- [ ] Step 6: Tasker endpoints (screen time, home/office Wi-Fi)
 - [ ] Step 7: weather
 - [ ] Step 8: morning chain, AI summary and static dashboard
 - [ ] Step 9: Cognito login

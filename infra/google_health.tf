@@ -13,9 +13,9 @@ data "archive_file" "google_health" {
   output_path = "${path.module}/build/google_health.zip"
   dynamic "source" {
     for_each = [
-      "common/raw.py", "common/retry.py", "common/watermark.py",
+      "common/auth.py", "common/raw.py", "common/retry.py", "common/watermark.py",
       "ingest/google_health/client.py", "ingest/google_health/handler.py",
-      "ingest/google_health/webhook.py",
+      "ingest/google_health/webhook.py", "ingest/tasker/handler.py", # one zip for all ingest
     ]
     content {
       content  = file("${path.module}/../src/${source.value}")

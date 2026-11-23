@@ -7,7 +7,6 @@ Google sends our secret in the Authorization header: verification POSTs expect 2
 and data types only, never headers or user IDs."""
 
 import base64
-import hmac
 import json
 import os
 from datetime import UTC, datetime, timedelta
@@ -15,20 +14,12 @@ from datetime import UTC, datetime, timedelta
 import boto3
 from botocore.exceptions import ClientError
 
+from common import auth
 from ingest.google_health import client
 
 SECRET_PARAM = "/phdi/google/webhook_secret"  # created by hand (D15), e.g. "Bearer <random>"
 COOLDOWN = timedelta(hours=3)
 COOLDOWN_KEY = {"pk": {"S": "google_health#webhook"}}  # lives in the watermark table
-_secret: str | None = None  # cached for the life of the Lambda container
-
-
-def _authorised(headers: dict, ssm) -> bool:
-    global _secret
-    if _secret is None:
-        _secret = ssm.get_parameter(Name=SECRET_PARAM, WithDecryption=True)["Parameter"]["Value"]
-    # Function URLs lower-case header names. compare_digest avoids leaking the secret by timing.
-    return hmac.compare_digest(headers.get("authorization", ""), _secret)
 
 
 def _claim_cooldown(ddb, table: str, now: datetime) -> bool:
@@ -58,7 +49,7 @@ def handler(event: dict, context: object, ssm=None, ddb=None, lam=None) -> dict:
     body = event.get("body") or ""
     if event.get("isBase64Encoded"):
         body = base64.b64decode(body).decode()
-    if not _authorised(event.get("headers") or {}, ssm):
+    if not auth.authorised(event.get("headers") or {}, ssm, SECRET_PARAM):
         print("Rejected: bad or missing secret")
         return {"statusCode": 401}
     payload = json.loads(body or "null")

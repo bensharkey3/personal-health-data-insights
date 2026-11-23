@@ -43,7 +43,7 @@ resource "aws_iam_role" "transform" {
   assume_role_policy = aws_iam_role.google_health.assume_role_policy
 }
 
-# Least privilege: read raw Google Health data, write curated files, log.
+# Least privilege: read raw Google Health and Tasker data, write curated files, log.
 resource "aws_iam_role_policy" "transform" {
   role = aws_iam_role.transform.name
   name = local.transform_name
@@ -54,12 +54,12 @@ resource "aws_iam_role_policy" "transform" {
         Effect    = "Allow"
         Action    = "s3:ListBucket"
         Resource  = aws_s3_bucket.raw.arn
-        Condition = { StringLike = { "s3:prefix" = "raw/google_health/*" } }
+        Condition = { StringLike = { "s3:prefix" = ["raw/google_health/*", "raw/tasker/*"] } }
       },
       {
         Effect   = "Allow"
         Action   = "s3:GetObject"
-        Resource = "${aws_s3_bucket.raw.arn}/raw/google_health/*"
+        Resource = ["${aws_s3_bucket.raw.arn}/raw/google_health/*", "${aws_s3_bucket.raw.arn}/raw/tasker/*"]
       },
       {
         Effect   = "Allow"
