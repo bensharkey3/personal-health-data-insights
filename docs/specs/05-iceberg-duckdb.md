@@ -11,6 +11,7 @@
 - Curated tables add a local_date column from the configured time zone; sleep assigned to the local date it ends (D3)
 - DuckDB and its extensions packaged as a shared Lambda layer (D10)
 - Monthly partitions; weekly EventBridge-scheduled Lambda running Athena OPTIMIZE and VACUUM on each table (D5)
+- Raw also holds a few Step 2 files in the old layout (`dt=<date>/pages.jsonl.gz`); the reader should accept both layouts (D19)
 
 ## Done when
 
