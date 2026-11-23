@@ -1,4 +1,4 @@
-# Main stack, applied only by GitHub Actions (deploy.yml) after approval in the production
+# Main stack, applied only by GitHub Actions (deploy.yml) on merge to main, via the production
 # environment. State lives in the bootstrap bucket; its name comes from -backend-config.
 
 terraform {

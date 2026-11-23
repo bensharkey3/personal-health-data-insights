@@ -218,3 +218,87 @@ def test_backfill_writes_run_objects_and_moves_watermark_forward_only(monkeypatc
         "S": "2030-03-01T00:00:00Z"
     }
     assert ddb.items["google_health#sleep"]["last_run_utc"]["S"].endswith("Z")
+
+
+# --- Webhook receiver (step 04) ---
+
+SECRET = "Bearer test-secret"
+
+
+class FakeSecretSSM:
+    def get_parameter(self, Name, WithDecryption):
+        return {"Parameter": {"Value": SECRET}}
+
+
+class FakeCooldownDDB:
+    """Mimics the conditional update: fails if a trigger is already recorded and not stale."""
+
+    def __init__(self):
+        self.last = None
+
+    def update_item(self, **kw):
+        from botocore.exceptions import ClientError
+
+        if kw["UpdateExpression"].startswith("REMOVE"):
+            self.last = None
+            return
+        if self.last and self.last >= kw["ExpressionAttributeValues"][":cut"]["S"]:
+            raise ClientError({"Error": {"Code": "ConditionalCheckFailedException"}}, "UpdateItem")
+        self.last = kw["ExpressionAttributeValues"][":now"]["S"]
+
+
+class FakeLambda:
+    def __init__(self):
+        self.invokes = []
+
+    def invoke(self, **kw):
+        self.invokes.append(kw)
+
+
+@pytest.fixture
+def hook(monkeypatch):
+    from ingest.google_health import webhook
+
+    monkeypatch.setattr(webhook, "_secret", None)
+    monkeypatch.setenv("WATERMARK_TABLE", "wm")
+    monkeypatch.setenv("INGEST_FUNCTION", "ingest")
+    ddb, lam = FakeCooldownDDB(), FakeLambda()
+
+    def call(body, auth=SECRET):
+        event = {"headers": {"authorization": auth} if auth else {}, "body": json.dumps(body)}
+        return webhook.handler(event, None, ssm=FakeSecretSSM(), ddb=ddb, lam=lam)["statusCode"]
+
+    return call, ddb, lam
+
+
+def note(kind):
+    return {"data": {"version": "1", "operation": "UPSERT", "dataType": kind, "intervals": []}}
+
+
+def test_webhook_verification(hook):
+    call, _, _ = hook
+    assert call({"type": "verification"}) == 201
+    assert call({"type": "verification"}, auth=None) == 401
+
+
+def test_webhook_rejects_bad_secret(hook):
+    call, _, lam = hook
+    assert call([note("sleep")], auth="Bearer wrong") == 401
+    assert lam.invokes == []
+
+
+def test_webhook_ignores_phone_steps(hook):
+    call, _, lam = hook
+    assert call([note("steps")]) == 204
+    assert lam.invokes == []
+
+
+def test_webhook_cooldown(hook):
+    call, ddb, lam = hook
+    assert call([note("sleep"), note("heart-rate")]) == 204
+    assert call([note("heart-rate")]) == 204  # within 3 hours: skipped
+    assert [i["Payload"] for i in lam.invokes] == [b"{}"]
+    assert lam.invokes[0]["InvocationType"] == "Event"
+    ddb.last = "2000-01-01T00:00:00Z"  # an old trigger no longer blocks
+    call([note("sleep")])
+    assert len(lam.invokes) == 2

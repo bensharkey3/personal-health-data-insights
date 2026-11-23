@@ -125,3 +125,13 @@ Measured on one day of `heart-rate`:
 - `400 Invalid data type ID ...`: the type doesn't exist.
 - `400 List is not supported for data type ...`: the type exists but needs another action.
 - `400 Invalid data point filter: INVALID_DATA_POINT_FILTER_RESTRICTION_COMPARATOR`: wrong comparator for the field (e.g. `=` on a daily date).
+
+## Webhooks
+
+From the [webhooks guide](https://developers.google.com/health/webhooks), used in step 04 (D22):
+
+- A subscriber (`POST /v4/projects/<number>/subscribers`) needs Cloud credentials (`cloud-platform` scope and a Google Health API IAM role), not the user's OAuth token. With the AUTOMATIC policy, every consented user is subscribed to the listed `dataTypes`, and there are no per-user calls.
+- Verification runs during create, and again when the endpoint or secret changes. Google sends two `{"type": "verification"}` POSTs: one with the secret in `Authorization`, which must get 200/201, and one without it, which must get 401/403.
+- Notifications are a JSON array of 1–99 items. Each `data` has `dataType`, `operation` (`UPSERT` or `DELETE`), `healthUserId` and `intervals`. Bodies are also ECDSA-signed (`GOOGLE-HEALTH-API-SIGNATURE`).
+- A reply under 400 acknowledges the POST. A 408, 429, 5xx or timeout is retried for up to 24 hours. Any other 4xx is dropped. Delivery is best effort and can repeat, so runs must be idempotent.
+
