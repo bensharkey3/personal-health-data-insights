@@ -33,7 +33,7 @@ Block names and options below are from Automate's docs as I understand them; con
 
    The function URL (`aws lambda get-function-url-config --function-name phdi-tasker`) and the secret (`aws ssm get-parameter --name /phdi/tasker/secret --with-decryption`) go into this flow's variables on the phone only.
 6. Start all three flows. Run **send** once by hand (with a few screen events logged) and check a `raw/tasker/events/` file appears in S3.
-7. About 30 blocks in total, around the free version's limit of blocks running at once; the premium unlock removes it. Flows can be exported as `.flo` files: blank the URL, secret and SSIDs before any is committed.
+7. The free version limits blocks *running at once*, not blocks in flows. Each flow waits on one block, so about 4 run at a time, well under the limit, and daily runs reuse the same blocks. Flows can be exported as `.flo` files: blank the URL, secret and SSIDs before any is committed.
 
 ## Done when
 
