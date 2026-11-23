@@ -77,3 +77,6 @@ Screen time is logged as screen on/off events, which gives total and late-night 
 
 ## D25: Tasker batch sent when bedtime mode ends
 Changes D24's send time. A fixed 03:30 send is unreliable: the phone lies still in bedtime mode, so Android's Doze delays timed profiles and cuts the network. Sending when bedtime mode ends (its Do Not Disturb switching off) means the phone is awake and online, and the night's events reach the morning summary. Events carry their own timestamps and stay on the phone until a send succeeds, so a late or missed send loses nothing. Turning Do Not Disturb off at other times just sends an extra small batch, which the transform de-duplicates.
+
+## D26: Automate instead of Tasker on the phone
+The phone logger is Automate (LlamaLab): flowcharts are easier to follow and export than Tasker's profiles, and it covers every trigger needed (display, Wi-Fi, Do Not Disturb, file write, HTTP). The receiver only sees CSV lines, so nothing on the AWS side changes. The internal "tasker" names (`phdi-tasker`, `raw/tasker/`, `curated/tasker/`, `/phdi/tasker/secret`, `src/ingest/tasker/`) stay as the source name: renaming would replace the Lambda and its function URL, and move raw files, for no functional gain.
