@@ -26,13 +26,14 @@ Run by Claude Code on the laptop, which has `aws login`, `gcloud` and `gh` (D18)
    ROLE=$(gcloud iam roles list --filter='title="Google Health API Admin"' --format='value(name)')
    gcloud projects add-iam-policy-binding "$(gcloud config get-value project)" --member="user:$(gcloud config get-value account)" --role="$ROLE"
    ```
-4. Create the subscriber. Google verifies the endpoint during this call:
+4. Create the subscriber. Google verifies the endpoint during this call. gcloud user credentials need the `x-goog-user-project` header, or Google refuses with "requires a quota project". On Windows Git Bash, prefix `aws` commands with `MSYS_NO_PATHCONV=1` so `/phdi/...` isn't rewritten to a Windows path:
    ```
    PROJECT_NUMBER=$(gcloud projects describe "$(gcloud config get-value project)" --format='value(projectNumber)')
    URL=$(aws lambda get-function-url-config --function-name phdi-google-health-webhook --query FunctionUrl --output text)
    SECRET=$(aws ssm get-parameter --name /phdi/google/webhook_secret --with-decryption --query Parameter.Value --output text)
    curl -sS -X POST "https://health.googleapis.com/v4/projects/$PROJECT_NUMBER/subscribers?subscriberId=phdi-fitbit" \
      -H "Authorization: Bearer $(gcloud auth print-access-token)" -H "Content-Type: application/json" \
+     -H "x-goog-user-project: $(gcloud config get-value project)" \
      -d '{"endpointUri": "'"$URL"'", "endpointAuthorization": {"secret": "'"$SECRET"'"},
           "subscriberConfigs": [{"subscriptionCreatePolicy": "AUTOMATIC", "dataTypes": ["heart-rate",
           "daily-resting-heart-rate", "heart-rate-variability", "daily-heart-rate-variability", "sleep",
