@@ -55,10 +55,13 @@ Google expires refresh tokens after 7 days while an External consent screen is i
 `rollUp` only accepts UTC timestamps, so steps are pulled for the UTC day and `dt` is that UTC date. `list` types filter on local (civil) time, so their `dt` is the local day. The transform derives `local_date` for steps from the window times, so the dashboard still groups by local day (D3).
 
 ## D18: Local AWS access for running and inspecting
-Manual runs and checks (invoking a Lambda, reading logs, listing S3) are done by Claude Code on the laptop through `aws login`, which gives short-lived credentials from the console sign-in, with no stored keys. This saves copy-pasting into CloudShell. Deploys still go only through GitHub Actions with approval. Secrets are still typed in by hand (D15). Cloud sessions don't have this access and fall back to CloudShell.
+Manual runs and checks (invoking a Lambda, reading logs, listing S3) are done by Claude Code on the laptop through `aws login`, which gives short-lived credentials from the console sign-in, with no stored keys. This saves copy-pasting into CloudShell. Deploys still go only through GitHub Actions. Secrets are still typed in by hand (D15). Cloud sessions don't have this access and fall back to CloudShell.
 
 ## D19: Run-stamped raw files
 Each run writes new objects, `dt=<date>/run=<UTC timestamp>.jsonl.gz`, instead of overwriting one file per type-day. Overlapping runs and webhook-triggered reruns fetch the same days again, and overwriting would break the "raw is immutable" rule: old copies would only survive 30 days as S3 versions. The curated `MERGE INTO` already dedupes on natural keys (D2), so the extra copies cost only a little storage. Type-days with no records write nothing, so device-only types don't fill the bucket with empty files.
 
 ## D20: Overlap from the newest data, not from now
 Supersedes D2's fixed 72h. The API has no "changed since" filter (`updateTime` is output only), so the overlap must cover how late data arrives. Data appears only once the phone uploads it, so a fixed window from now misses anything synced later than the window. Each run instead fetches from one day before the type's newest data point (watermark) to today. That covers a device that was silent for days, plus same-day revisions such as sleep stages finalised after waking. The window is capped at 7 days, so device-only types with no new data don't re-fetch months each run; longer gaps need a backfill run. The step 04 webhook will re-fetch exactly the intervals Google reports as changed, making this a safety net.
+
+## D21: No deploy approval while in development
+Merging a PR to `main` is the approval: the Deploy workflow applies straight away, with no required reviewer on the `production` environment. The project isn't in use yet, and the extra click left deploys waiting unnoticed. The environment stays, limited to `main`. Re-add a required reviewer once real data flows (step 10).
