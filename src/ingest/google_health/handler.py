@@ -3,8 +3,10 @@
 Event {} (incremental): per type, from one day before its newest data point to today (D20).
 Event {"start": "YYYY-MM-DD", "end": "YYYY-MM-DD"} (backfill): those days inclusive, slowly.
 Each type-day with data becomes one new object (common.raw), then the type's watermark is
-updated. Logs counts only, never tokens or values."""
+updated. The days with data are then handed to the transform (D23). Logs counts only, never
+tokens or values."""
 
+import json
 import os
 import time
 import urllib.error
@@ -53,23 +55,24 @@ def backfill_days(event: dict) -> list[date]:
     return todo
 
 
-def handler(event: dict, context: object, ssm=None, s3=None, ddb=None) -> dict[str, int]:
+def handler(event: dict, context: object, ssm=None, s3=None, ddb=None, lam=None) -> dict[str, int]:
     """Returns points per type. Clients can be passed in by tests; Lambda passes only two args."""
     ssm, s3 = ssm or boto3.client("ssm"), s3 or boto3.client("s3")
-    ddb = ddb or boto3.client("dynamodb")
+    ddb, lam = ddb or boto3.client("dynamodb"), lam or boto3.client("lambda")
     bucket, table = os.environ["RAW_BUCKET"], os.environ["WATERMARK_TABLE"]
     now = datetime.now(UTC)
     run = now.strftime("%Y%m%dT%H%M%SZ")
     backfill = backfill_days(event) if "start" in event else None
     token = client.access_token(**credentials(ssm))
 
-    counts, failed = {}, []
+    counts, failed, changed = {}, [], {}
     for kind in client.TYPES:
         mark = watermark.get(ddb, table, SOURCE, kind)
         todo = backfill or incremental_days(kind, mark, now.date())
         points, newest = 0, None
         try:
             for day in todo:
+                before = points
                 with raw.Writer(s3, bucket, raw.key(SOURCE, kind, day, run)) as out:
                     for page in client.pages(kind, day, token):
                         out.write(page, n := client.count(page))  # := assigns and passes n
@@ -77,6 +80,8 @@ def handler(event: dict, context: object, ssm=None, s3=None, ddb=None) -> dict[s
                         newest = max(
                             filter(None, [newest, client.newest(kind, page)]), default=None
                         )
+                if points > before:
+                    changed.setdefault(kind, []).append(day.isoformat())
                 if backfill:
                     time.sleep(BACKFILL_PAUSE_S)
         except urllib.error.HTTPError as e:  # after retries; Google's error body has no tokens
@@ -86,6 +91,12 @@ def handler(event: dict, context: object, ssm=None, s3=None, ddb=None) -> dict[s
         watermark.put(ddb, table, SOURCE, kind, mark, now.strftime("%Y-%m-%dT%H:%M:%SZ"), newest)
         counts[kind] = points
         print(f"{kind}: {points} points over {len(todo)} days {todo[0]}..{todo[-1]}")
+    if changed:  # async: the transform rebuilds the touched months in its own time
+        lam.invoke(
+            FunctionName=os.environ["TRANSFORM_FUNCTION"],
+            InvocationType="Event",
+            Payload=json.dumps({"days": changed}).encode(),
+        )
     if failed:
         raise RuntimeError(f"Failed types: {failed}")  # marks the invocation as failed
     return counts
