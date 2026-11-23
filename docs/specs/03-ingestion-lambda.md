@@ -26,7 +26,7 @@
 ## Done when
 
 - Re-running the same window creates no duplicates once deduplicated downstream
-- A 7-day backfill completes without hitting rate limits
+- A 3-day backfill completes without hitting rate limits (cut from 7 days: full history waits for step 10)
 
 ## Out of scope
 
