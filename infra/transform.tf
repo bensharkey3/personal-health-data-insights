@@ -89,7 +89,10 @@ resource "aws_lambda_function" "transform" {
   # One rebuild at a time, so two runs never write the same month at once.
   reserved_concurrent_executions = 1
   environment {
-    variables = { RAW_BUCKET = aws_s3_bucket.raw.id }
+    variables = {
+      RAW_BUCKET = aws_s3_bucket.raw.id
+      TIME_ZONE  = var.time_zone # D27
+    }
   }
   depends_on = [aws_iam_role_policy.transform, aws_cloudwatch_log_group.transform]
 }

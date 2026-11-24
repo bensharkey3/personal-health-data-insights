@@ -6,7 +6,7 @@
 
 - Transform Lambda `phdi-transform`: for each type-month it lists the raw files, keeps the newest per `dt=` folder, flattens them with DuckDB and writes `curated/google_health/<type>/month=YYYY-MM/data.parquet`, replacing the old file
 - The old Step 2 `pages.jsonl.gz` files sort before `run=…`, so they count only when they're a day's only file (D19)
-- One SQL `SELECT` per type in `src/transform/google_health.py`: string numbers cast, source platform kept, `local_date` from the record's civil date (samples, daily), its end time plus UTC offset (sleep, D3), or `Australia/Melbourne` (steps, whose windows are UTC, D17). Steps drop empty windows. The sleep stage timeline is kept as JSON for a hypnogram later
+- One SQL `SELECT` per type in `src/transform/google_health.py`: string numbers cast, source platform kept, `local_date` from the record's civil date (samples, daily), its end time plus UTC offset (sleep, D3), or the `TIME_ZONE` config (steps, whose windows are UTC, D17). Steps drop empty windows. The sleep stage timeline is kept as JSON for a hypnogram later
 - Ingestion invokes the transform asynchronously after each run with `{"days": {"<type>": [...]}}`, listing only days that had data
 - DuckDB 2.0 as a Lambda layer, built by CI for arm64 (`manylinux_2_28`). Its wheel bundles the json, parquet and icu extensions
 - Raw files are downloaded to `/tmp` with boto3, so DuckDB needs no S3 extension in Lambda

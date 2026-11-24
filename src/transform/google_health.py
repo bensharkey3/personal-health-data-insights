@@ -2,7 +2,11 @@
 row per data point out, with local_date (D3) and the source platform. Field paths are from the
 record shapes in docs/google-health-api.md; many numbers arrive as strings, so all are cast."""
 
-TIME_ZONE = "Australia/Melbourne"  # only for steps, whose rollUp windows are UTC (D17)
+import os
+
+# IANA zone for steps (whose rollUp windows are UTC, D17) and phone events. Set by Terraform from
+# the TIME_ZONE GitHub secret, so it stays out of the repo (D27).
+TIME_ZONE = os.environ.get("TIME_ZONE", "UTC")
 
 _SOURCE = "r->>'$.dataSource.platform' AS platform"
 

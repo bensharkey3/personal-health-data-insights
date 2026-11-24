@@ -5,6 +5,6 @@ variable "alert_email" {
 }
 
 variable "time_zone" {
-  description = "IANA time zone for the daily run, e.g. Area/City (GitHub secret TIME_ZONE, passed as TF_VAR_time_zone; kept out of the repo, D3)"
+  description = "IANA time zone for the daily run and local dates, e.g. Area/City (GitHub secret TIME_ZONE, passed as TF_VAR_time_zone; kept out of the repo, D3)"
   type        = string
 }
