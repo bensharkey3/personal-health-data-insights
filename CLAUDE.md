@@ -2,7 +2,7 @@
 
 ## Project
 
-Personal, single-user health data insights pipeline on AWS: Fitbit Air (Google Health API), phone screen time and location (Automate), weather → S3 → Parquet → daily dashboard and AI summary. Also a learning project for modern data engineering. Minimal cost matters.
+Personal, single-user health data insights pipeline on AWS: Fitbit Air (Google Health API), phone screen time and location (Tasker), weather → S3 → Parquet → daily dashboard and AI summary. Also a learning project for modern data engineering. Minimal cost matters.
 
 ## Where things are
 
@@ -45,7 +45,7 @@ Personal, single-user health data insights pipeline on AWS: Fitbit Air (Google H
 - [x] Step 3: ingestion Lambda with watermark + raw S3 writes
 - [ ] Step 4: webhook subscription trigger
 - [ ] Step 5: curated Parquet + DuckDB transforms
-- [ ] Step 6: phone (Automate) endpoints (screen time, home/office Wi-Fi)
+- [ ] Step 6: Tasker endpoints (screen time, home/office Wi-Fi)
 - [ ] Step 7: weather
 - [ ] Step 8: morning chain, AI summary and static dashboard
 - [ ] Step 9: Cognito login

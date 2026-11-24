@@ -83,3 +83,6 @@ The phone logger is Automate (LlamaLab): flowcharts are easier to follow and exp
 
 ## D27: Time zone only in config
 The local time zone is the `TIME_ZONE` GitHub secret, passed by Terraform to the scheduler and to the transform Lambda as an environment variable, instead of being written in the code. A time zone narrows down where I live, and the repo is public. Tests use a fixed `Etc/GMT-11` zone. Older commits still contain it; rewriting public history isn't worth it for this.
+
+## D28: Tasker from a committed project file
+Supersedes D26. Building Automate flows by hand was too fiddly, and Automate's `.flo` files are binary, so they can't be written as code. Tasker imports a readable XML project, so the whole phone setup lives in the repo (`src/ingest/tasker/phdi.prj.xml`): import it, set two variables, type two network names. Logging uses native Write File actions; only the daily send is JavaScript. A test keeps URLs, the secret and real network names out of the file, since the repo is public.

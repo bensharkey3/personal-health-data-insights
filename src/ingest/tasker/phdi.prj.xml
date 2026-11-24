@@ -1,0 +1,191 @@
+<TaskerData sr="" dvi="1" tv="6.3.13">
+	<Profile sr="prof1" ve="2">
+		<cdate>1764000000000</cdate>
+		<edate>1764000000000</edate>
+		<id>1</id>
+		<mid0>11</mid0>
+		<nme>phdi screen on</nme>
+		<Event sr="con0" ve="2">
+			<code>208</code>
+		</Event>
+	</Profile>
+	<Profile sr="prof2" ve="2">
+		<cdate>1764000000000</cdate>
+		<edate>1764000000000</edate>
+		<id>2</id>
+		<mid0>12</mid0>
+		<nme>phdi screen off</nme>
+		<Event sr="con0" ve="2">
+			<code>210</code>
+		</Event>
+	</Profile>
+	<Profile sr="prof3" ve="2">
+		<cdate>1764000000000</cdate>
+		<edate>1764000000000</edate>
+		<id>3</id>
+		<mid0>13</mid0>
+		<mid1>14</mid1>
+		<nme>phdi home</nme>
+		<State sr="con0" ve="2">
+			<code>160</code>
+			<Str sr="arg0" ve="3">SET_HOME_SSID</Str>
+			<Str sr="arg1" ve="3"/>
+			<Str sr="arg2" ve="3"/>
+			<Int sr="arg3" val="2"/>
+		</State>
+	</Profile>
+	<Profile sr="prof4" ve="2">
+		<cdate>1764000000000</cdate>
+		<edate>1764000000000</edate>
+		<id>4</id>
+		<mid0>15</mid0>
+		<mid1>16</mid1>
+		<nme>phdi office</nme>
+		<State sr="con0" ve="2">
+			<code>160</code>
+			<Str sr="arg0" ve="3">SET_OFFICE_SSID</Str>
+			<Str sr="arg1" ve="3"/>
+			<Str sr="arg2" ve="3"/>
+			<Int sr="arg3" val="2"/>
+		</State>
+	</Profile>
+	<Profile sr="prof5" ve="2">
+		<cdate>1764000000000</cdate>
+		<edate>1764000000000</edate>
+		<id>5</id>
+		<mid0>17</mid0>
+		<nme>phdi send when DND off</nme>
+		<State sr="con0" ve="2">
+			<code>186</code>
+			<Int sr="arg0" val="0"/>
+			<Str sr="arg1" ve="3">zen_mode</Str>
+			<Str sr="arg2" ve="3">0</Str>
+		</State>
+	</Profile>
+	<Project sr="proj0" ve="2">
+		<cdate>1764000000000</cdate>
+		<name>phdi</name>
+		<pids>1,2,3,4,5</pids>
+		<tids>11,12,13,14,15,16,17</tids>
+	</Project>
+	<Task sr="task11">
+		<cdate>1764000000000</cdate>
+		<edate>1764000000000</edate>
+		<id>11</id>
+		<nme>phdi log screen_on</nme>
+		<Action sr="act0" ve="7">
+			<code>410</code>
+			<Str sr="arg0" ve="3">phdi/events.csv</Str>
+			<Str sr="arg1" ve="3">%TIMES,screen_on</Str>
+			<Int sr="arg2" val="1"/>
+			<Int sr="arg3" val="1"/>
+		</Action>
+	</Task>
+	<Task sr="task12">
+		<cdate>1764000000000</cdate>
+		<edate>1764000000000</edate>
+		<id>12</id>
+		<nme>phdi log screen_off</nme>
+		<Action sr="act0" ve="7">
+			<code>410</code>
+			<Str sr="arg0" ve="3">phdi/events.csv</Str>
+			<Str sr="arg1" ve="3">%TIMES,screen_off</Str>
+			<Int sr="arg2" val="1"/>
+			<Int sr="arg3" val="1"/>
+		</Action>
+	</Task>
+	<Task sr="task13">
+		<cdate>1764000000000</cdate>
+		<edate>1764000000000</edate>
+		<id>13</id>
+		<nme>phdi log home_on</nme>
+		<Action sr="act0" ve="7">
+			<code>410</code>
+			<Str sr="arg0" ve="3">phdi/events.csv</Str>
+			<Str sr="arg1" ve="3">%TIMES,home_on</Str>
+			<Int sr="arg2" val="1"/>
+			<Int sr="arg3" val="1"/>
+		</Action>
+	</Task>
+	<Task sr="task14">
+		<cdate>1764000000000</cdate>
+		<edate>1764000000000</edate>
+		<id>14</id>
+		<nme>phdi log home_off</nme>
+		<Action sr="act0" ve="7">
+			<code>410</code>
+			<Str sr="arg0" ve="3">phdi/events.csv</Str>
+			<Str sr="arg1" ve="3">%TIMES,home_off</Str>
+			<Int sr="arg2" val="1"/>
+			<Int sr="arg3" val="1"/>
+		</Action>
+	</Task>
+	<Task sr="task15">
+		<cdate>1764000000000</cdate>
+		<edate>1764000000000</edate>
+		<id>15</id>
+		<nme>phdi log office_on</nme>
+		<Action sr="act0" ve="7">
+			<code>410</code>
+			<Str sr="arg0" ve="3">phdi/events.csv</Str>
+			<Str sr="arg1" ve="3">%TIMES,office_on</Str>
+			<Int sr="arg2" val="1"/>
+			<Int sr="arg3" val="1"/>
+		</Action>
+	</Task>
+	<Task sr="task16">
+		<cdate>1764000000000</cdate>
+		<edate>1764000000000</edate>
+		<id>16</id>
+		<nme>phdi log office_off</nme>
+		<Action sr="act0" ve="7">
+			<code>410</code>
+			<Str sr="arg0" ve="3">phdi/events.csv</Str>
+			<Str sr="arg1" ve="3">%TIMES,office_off</Str>
+			<Int sr="arg2" val="1"/>
+			<Int sr="arg3" val="1"/>
+		</Action>
+	</Task>
+	<Task sr="task17">
+		<cdate>1764000000000</cdate>
+		<edate>1764000000000</edate>
+		<id>17</id>
+		<nme>phdi send</nme>
+		<Action sr="act0" ve="7">
+			<code>129</code>
+			<Str sr="arg0" ve="3">// Runs when Do Not Disturb switches off (bedtime mode ended, D25). Moves the event log
+// aside, POSTs every pending batch, and deletes each only after a 2xx reply, so a failed
+// send is retried next time. Written without less-than or ampersand so it stays plain XML.
+var dir = "/sdcard/phdi";
+var url = global("PHDI_URL");
+var secret = global("PHDI_SECRET");
+
+function run(cmd) {
+  try { return shell(cmd, false, 20) || ""; } catch (e) { return ""; }
+}
+
+run("mkdir -p " + dir + "/sending");
+run("mv " + dir + "/events.csv " + dir + "/sending/" + Date.now() + ".csv");
+
+var names = run("ls " + dir + "/sending").split("\n");
+var sent = 0, kept = 0;
+for (var i = 0; i != names.length; i++) {
+  var name = names[i].trim();
+  if (!name) continue;
+  var path = dir + "/sending/" + name;
+  var xhr = new XMLHttpRequest();
+  try {
+    xhr.open("POST", url, false);
+    xhr.setRequestHeader("Authorization", secret);
+    xhr.setRequestHeader("Content-Type", "text/csv");
+    xhr.send(readFile(path));
+  } catch (e) {}
+  if (Math.floor(xhr.status / 100) == 2) { run("rm " + path); sent++; } else { kept++; }
+}
+if (kept) flash("phdi send: " + sent + " sent, " + kept + " kept for retry (HTTP " + xhr.status + ")");</Str>
+			<Str sr="arg1" ve="3"/>
+			<Int sr="arg2" val="1"/>
+			<Int sr="arg3" val="45"/>
+		</Action>
+	</Task>
+</TaskerData>
