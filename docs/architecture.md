@@ -4,7 +4,7 @@ Single-user serverless pipeline on AWS. Data flows one way, from sources to a da
 
 ```
 Fitbit (Google Health) ─webhook─┐   (phone steps: daily schedule)
-Tasker (phone) ──function URL───┼─▶ Ingest Lambdas ─▶ S3 raw JSON ─▶ DuckDB transform ─▶ S3 curated Parquet
+Automate (phone) ─function URL──┼─▶ Ingest Lambdas ─▶ S3 raw JSON ─▶ DuckDB transform ─▶ S3 curated Parquet
 Weather ──schedule──────────────┘                                                          │
                                        Dashboard + AI summary (CloudFront) ◀─ Morning chain ┘
 ```
@@ -14,7 +14,7 @@ Weather ──schedule──────────────┘             
 | Source | Data | Arrives via | Spec |
 | --- | --- | --- | --- |
 | Google Health API | Heart rate, HRV, sleep, SpO2, respiratory rate, skin temperature, steps (D13). Old Fitbit history; only steps continue from the phone until a Fitbit Air (D11) | Fitbit: webhook, at most every 3 h; phone steps: daily run (D22) | 02–04 |
-| Tasker (Android) | Screen on/off, home/office Wi-Fi presence (D24) | Nightly CSV batch to a Lambda function URL | 06 |
+| Automate (Android) | Screen on/off, home/office Wi-Fi presence (D24, D26) | Daily CSV batch, sent when bedtime mode ends, to a Lambda function URL (D25) | 06 |
 | Weather API | Daily/hourly weather | EventBridge schedule | 07 |
 
 ## Ingestion and storage

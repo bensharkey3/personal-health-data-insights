@@ -1,42 +1,39 @@
-# Step 06: Tasker screen time and home/office presence
+# Step 06: Phone screen time and home/office presence (Automate)
 
-**Goal:** phone screen time and home/office presence land in the pipeline automatically, once a night (D24).
+**Goal:** phone screen time and home/office presence land in the pipeline automatically, once a day when bedtime mode ends (D24, D25).
 
 ## Scope
 
-- Tasker logs screen on/off and home/office Wi-Fi changes to a local CSV file, one `<UTC epoch seconds>,<event>` line each. Events: `screen_on`, `screen_off`, `home_on`, `home_off`, `office_on`, `office_off`. Network names and coordinates never leave the phone
-- At 03:30 Tasker POSTs the batch to the `phdi-tasker` function URL with the shared secret, and deletes it only after a 2xx reply, so a failed night is retried the next night
+- The phone (Automate, D26) logs screen on/off and home/office Wi-Fi changes to a local CSV file, one `<UTC epoch seconds>,<event>` line each. Events: `screen_on`, `screen_off`, `home_on`, `home_off`, `office_on`, `office_off`. Network names and coordinates never leave the phone
+- When bedtime mode ends in the morning, Automate POSTs the batch to the `phdi-tasker` function URL with the shared secret, and deletes it only after a 2xx reply, so a failed send is retried the next morning (D25)
 - The receiver stores the body gzipped as-is in `raw/tasker/events/dt=<UTC date received>/run=<ts>.csv.gz`, then starts the transform. Bodies with no valid lines write nothing
-- The transform rebuilds two tables from all Tasker raw files on every batch:
+- The transform rebuilds two tables from all phone raw files on every batch:
   - `curated/tasker/screen_sessions/data.parquet`: `start_utc`, `end_utc`, `minutes`, `local_date`, `start_hour_local`
   - `curated/tasker/places/data.parquet`: `place`, plus the same columns
   - Repeated lines from a re-sent batch are removed. An `_on` without a following `_off` is dropped, as are screen sessions over 12 h
 
 ## Setup
 
+Block names and options below are from Automate's docs as I understand them; confirm each on the phone. Each flow loops: wait for a change, write a line, go back to the wait.
+
 1. Create the secret (laptop, after deploy):
    ```
    MSYS_NO_PATHCONV=1 aws ssm put-parameter --name /phdi/tasker/secret --type SecureString --value "Bearer $(openssl rand -hex 32)"
    ```
-2. In Tasker (Variables tab), create `%PHDI_URL` and `%PHDI_SECRET`. Their values come from `aws lambda get-function-url-config --function-name phdi-tasker` and `aws ssm get-parameter --name /phdi/tasker/secret --with-decryption`. They stay on the phone.
-3. Logging profiles. Each task is one action, **File → Write File**, file `phdi/events.csv`, with **Append** and **Add Newline** ticked:
+2. Phone settings: Automate's battery use **Unrestricted**, location **Allow all the time** (Android only reveals Wi-Fi names to apps with it), and Do Not Disturb access.
+3. Flow **screen**: **Display on?** with *Proceed: When changed*, then **File write**, file `phdi/events.csv`, *Append* on, content `{floor(now)},screen_on\n` from the yes path or `{floor(now)},screen_off\n` from the no path. `now` is epoch seconds.
+4. Flow **places**: the same loop with **Wi-Fi connected?** (*When changed*, SSID = your home network), writing `home_on` / `home_off`. Duplicate it for the office network. The SSIDs live only in the flow on the phone.
+5. Flow **send**: **Interruption mode?** with *When changed*, continuing only when it's back to all notifications (bedtime mode ended). Then:
+   1. **File move** `phdi/events.csv` to `phdi/sending/{floor(now)}.csv` (its failure path just continues, as there may be no new events).
+   2. **File list** `phdi/sending`, then **For each** file:
+      - **File read text** into `body`.
+      - **HTTP request**: POST to the function URL, header `Authorization` = the secret, body `body`, content type `text/csv`, response status into `status`.
+      - **File delete** the file if `status >= 200 && status < 300`.
+   3. Back to the wait.
 
-   | Profile | Trigger | Text written |
-   | --- | --- | --- |
-   | Screen on | Event → Display → Display On | `%TIMES,screen_on` |
-   | Screen off | Event → Display → Display Off | `%TIMES,screen_off` |
-   | Home | State → Net → Wifi Connected, your home SSID | entry `%TIMES,home_on`, exit task `%TIMES,home_off` |
-   | Office | State → Net → Wifi Connected, your office SSID | entry `%TIMES,office_on`, exit task `%TIMES,office_off` |
-
-4. Send profile, triggered by Time → 03:30. Its task:
-   1. **File → Move File**: `phdi/events.csv` to `phdi/sending/%TIMES.csv`. Tick *Continue Task After Error*, since there may be no new events.
-   2. **File → List Files**: `phdi/sending`, into `%files`.
-   3. **Task → For**: `%file` over `%files()`.
-      - **File → Read File**: `%file` into `%body`.
-      - **Net → HTTP Request**: POST to `%PHDI_URL`, header `Authorization:%PHDI_SECRET`, body `%body`, MIME type `text/csv`. Tick *Continue Task After Error*.
-      - **File → Delete File**: `%file`, If `%http_response_code` matches `2*`.
-   4. **Task → End For**.
-5. Run the send task once by hand to check it.
+   The function URL (`aws lambda get-function-url-config --function-name phdi-tasker`) and the secret (`aws ssm get-parameter --name /phdi/tasker/secret --with-decryption`) go into this flow's variables on the phone only.
+6. Start all three flows. Run **send** once by hand (with a few screen events logged) and check a `raw/tasker/events/` file appears in S3.
+7. The free version limits blocks *running at once*, not blocks in flows. Each flow waits on one block, so about 4 run at a time, well under the limit, and daily runs reuse the same blocks. Flows can be exported as `.flo` files: blank the URL, secret and SSIDs before any is committed.
 
 ## Done when
 
