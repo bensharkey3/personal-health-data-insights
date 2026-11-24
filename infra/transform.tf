@@ -25,7 +25,7 @@ data "archive_file" "transform" {
   type        = "zip"
   output_path = "${path.module}/build/transform.zip"
   dynamic "source" {
-    for_each = ["transform/handler.py", "transform/google_health.py"]
+    for_each = ["transform/handler.py", "transform/google_health.py", "transform/tasker.py"]
     content {
       content  = file("${path.module}/../src/${source.value}")
       filename = source.value
