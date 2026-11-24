@@ -177,7 +177,7 @@ resource "aws_iam_role_policy" "ingest_schedule" {
 
 resource "aws_scheduler_schedule" "google_health_daily" {
   name                         = "${local.prefix}-google-health-daily"
-  schedule_expression          = "cron(0 4 * * ? *)" # 04:00 local: all of yesterday, before I wake
+  schedule_expression          = "cron(15 5 * * ? *)" # 05:15 local: all of yesterday, before I wake
   schedule_expression_timezone = var.time_zone
   flexible_time_window {
     mode = "OFF"
