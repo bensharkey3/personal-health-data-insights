@@ -69,7 +69,7 @@ resource "aws_iam_role_policy" "transform" {
         Resource = "${aws_s3_bucket.raw.arn}/curated/*"
       },
       {
-        # The tick reads the phone's zone (D31); ListBucket makes a missing file a 404, not a 403.
+        # The tick reads the phone's zone (D31), after listing it to see if it exists yet.
         Effect   = "Allow"
         Action   = "s3:GetObject"
         Resource = "${aws_s3_bucket.raw.arn}/curated/tasker/locations/latest.json"

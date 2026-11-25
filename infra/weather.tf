@@ -16,7 +16,7 @@ resource "aws_iam_role" "weather" {
 }
 
 # Least privilege: read the latest fix, write its raw prefix, start the transform, log. Open-Meteo
-# needs no key. ListBucket on the fix's prefix makes a missing file a 404 rather than a 403.
+# needs no key. ListBucket on the fix's prefix lets it check whether the file exists yet.
 resource "aws_iam_role_policy" "weather" {
   role = aws_iam_role.weather.name
   name = local.weather_name

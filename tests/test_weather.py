@@ -54,15 +54,18 @@ def test_daily_url_asks_for_yesterday_and_today_at_the_fix():
 
 
 class IngestS3:
-    class exceptions:  # noqa: N801 - mirrors boto3's client.exceptions
-        NoSuchKey = KeyError
+    """Like real S3 with ListBucket scoped to a prefix: a GetObject of a missing key is denied
+    (403), not "not found", so code must list the key first."""
 
     def __init__(self, fix: dict | None):
         self.fix, self.objects = fix, {}
 
+    def list_objects_v2(self, Bucket, Prefix):
+        return {"KeyCount": int(self.fix is not None)}
+
     def get_object(self, Bucket, Key):
         if self.fix is None:
-            raise KeyError(Key)
+            raise PermissionError("AccessDenied")
         return {"Body": io.BytesIO(json.dumps(self.fix).encode())}
 
     def put_object(self, Bucket, Key, Body):
