@@ -2,7 +2,9 @@
 
 import gzip
 import json
+import xml.etree.ElementTree as ET
 from datetime import UTC, date, datetime
+from pathlib import Path
 
 import duckdb
 import pytest
@@ -114,3 +116,33 @@ def test_places_by_label(tmp_path):
         ("office", 480.0, date(2030, 1, 15)),
         ("home", 840.0, date(2030, 1, 15)),
     ]
+
+
+# --- Tasker project file (D28) ---
+
+PROJECT = Path(__file__).parent.parent / "src/ingest/tasker/phdi.prj.xml"
+
+
+def test_tasker_project_is_wired_and_logs_what_the_receiver_accepts():
+    root = ET.parse(PROJECT).getroot()
+    profiles = {p.findtext("id"): p for p in root.iter("Profile")}
+    tasks = {t.findtext("id"): t for t in root.iter("Task")}
+    project = root.find("Project")
+    assert project.findtext("pids").split(",") == list(profiles)
+    assert project.findtext("tids").split(",") == list(tasks)
+    for p in profiles.values():  # every entry (mid0) and exit (mid1) task exists
+        assert {p.findtext(m) for m in ("mid0", "mid1") if p.find(m) is not None} <= tasks.keys()
+    for a in root.iter("Action"):
+        if a.findtext("code") == "410":  # Write File; %TIMES is epoch seconds on the phone
+            line = a.find("Str[@sr='arg1']").text.replace("%TIMES", "1795000000")
+            assert receiver.LINE.match(line), line
+
+
+def test_tasker_project_holds_nothing_private():
+    """Guards re-exports from the phone: no URL or secret, and Wi-Fi names back to placeholders."""
+    text = PROJECT.read_text()
+    for banned in ("http://", "https://", "lambda-url", "Bearer", "amazonaws"):
+        assert banned not in text, banned
+    wifi = [s for s in ET.parse(PROJECT).iter("State") if s.findtext("code") == "160"]
+    names = {s.find("Str[@sr='arg0']").text for s in wifi}
+    assert names == {"SET_HOME_SSID", "SET_OFFICE_SSID"}
