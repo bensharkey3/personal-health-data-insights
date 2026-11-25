@@ -53,10 +53,11 @@ def url(fix: dict, event: dict) -> str:
 
 
 def latest_fix(s3, bucket: str) -> dict | None:
-    try:
-        return json.loads(s3.get_object(Bucket=bucket, Key=LATEST_FIX)["Body"].read())
-    except s3.exceptions.NoSuchKey:
+    """None before the first fix. Listed first: with ListBucket scoped to a prefix, S3 answers a
+    read of a missing key with 403, not 404, so a read can't tell "missing" from "forbidden"."""
+    if not s3.list_objects_v2(Bucket=bucket, Prefix=LATEST_FIX).get("KeyCount"):
         return None
+    return json.loads(s3.get_object(Bucket=bucket, Key=LATEST_FIX)["Body"].read())
 
 
 def handler(event: dict, context: object, s3=None, lam=None) -> dict[str, int]:

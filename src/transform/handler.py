@@ -117,11 +117,12 @@ LATEST_FIX = "curated/tasker/locations/latest.json"
 
 
 def phone_zone(s3, bucket: str) -> str:
-    """The zone of the phone's latest fix (D29), or the TIME_ZONE fallback before the first."""
-    try:
-        return json.loads(s3.get_object(Bucket=bucket, Key=LATEST_FIX)["Body"].read())["time_zone"]
-    except s3.exceptions.NoSuchKey:
+    """The zone of the phone's latest fix (D29), or the TIME_ZONE fallback before the first.
+    The key is listed first: with ListBucket scoped to a prefix, S3 answers a read of a missing
+    key with 403 Access Denied, not 404, so a read can't tell "missing" from "forbidden"."""
+    if not s3.list_objects_v2(Bucket=bucket, Prefix=LATEST_FIX).get("KeyCount"):
         return locations.TIME_ZONE
+    return json.loads(s3.get_object(Bucket=bucket, Key=LATEST_FIX)["Body"].read())["time_zone"]
 
 
 def is_daily_slot(at: str, zone: str) -> bool:
