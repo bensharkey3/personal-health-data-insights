@@ -8,12 +8,14 @@ Event {"source": "tasker"}: rebuilds the Tasker tables, and the phone locations,
 raw files (D24, D29), plus the latest fix for the 05:00 weather run (D30).
 Steps also read the location lines, for the phone's time zone (D29).
 Event {"source": "weather"}: rebuilds the weather table from every run (newest wins per date).
+Event {"source": "tick", "at": "<UTC time>"}: every 15 minutes; at 05:00 in the phone's current
+zone it starts the daily ingest and weather runs (D31). DuckDB has the time zone data for it.
 Logs counts only, never values."""
 
 import json
 import os
 import tempfile
-from datetime import date
+from datetime import date, datetime, time
 from pathlib import Path
 
 import boto3
@@ -110,10 +112,41 @@ def rebuild_weather(s3, bucket: str) -> dict[str, int]:
     return {"weather/daily": n}
 
 
-def handler(event: dict, context: object, s3=None) -> dict[str, int]:
-    """Returns rows written per table. Tests pass a fake S3; Lambda passes two args."""
+DAILY_SLOT = (time(5, 0), time(5, 15))  # one 15-minute tick a day falls in this local window
+LATEST_FIX = "curated/tasker/locations/latest.json"
+
+
+def phone_zone(s3, bucket: str) -> str:
+    """The zone of the phone's latest fix (D29), or the TIME_ZONE fallback before the first."""
+    try:
+        return json.loads(s3.get_object(Bucket=bucket, Key=LATEST_FIX)["Body"].read())["time_zone"]
+    except s3.exceptions.NoSuchKey:
+        return locations.TIME_ZONE
+
+
+def is_daily_slot(at: str, zone: str) -> bool:
+    """Whether the scheduled UTC time `at` falls in the daily slot, local to `zone`. The time is
+    parsed first, so only a clean ISO value reaches the SQL; zones come from our own files."""
+    utc = datetime.fromisoformat(at.replace("Z", "+00:00")).isoformat()
+    local = duckdb.sql(f"SELECT (TIMESTAMPTZ '{utc}' AT TIME ZONE '{zone}')::TIME").fetchall()
+    return DAILY_SLOT[0] <= local[0][0] < DAILY_SLOT[1]
+
+
+def tick(s3, lam, bucket: str, at: str) -> dict[str, int]:
+    if not is_daily_slot(at, phone_zone(s3, bucket)):
+        return {}
+    for name in ("INGEST_FUNCTION", "WEATHER_FUNCTION"):  # async: each runs in its own time
+        lam.invoke(FunctionName=os.environ[name], InvocationType="Event", Payload=b"{}")
+    print("daily runs started")
+    return {"daily_runs": 2}
+
+
+def handler(event: dict, context: object, s3=None, lam=None) -> dict[str, int]:
+    """Returns rows written per table. Tests pass fake clients; Lambda passes two args."""
     s3 = s3 or boto3.client("s3")
     bucket = os.environ["RAW_BUCKET"]
+    if event.get("source") == "tick":
+        return tick(s3, lam or boto3.client("lambda"), bucket, event["at"])
     if event.get("source") == "tasker":
         return rebuild_tasker(s3, bucket)
     if event.get("source") == "weather":

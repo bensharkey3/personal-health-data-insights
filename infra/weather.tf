@@ -1,5 +1,5 @@
-# --- Weather (D30): yesterday's actuals and today's forecast from Open-Meteo, daily at 05:00, at
-# the phone's latest location fix (D29), so there's no location config ---
+# --- Weather (D30): yesterday's actuals and today's forecast from Open-Meteo, started at 05:00
+# phone-local by the transform's tick (D31), at the phone's latest location fix (D29) ---
 
 locals {
   weather_name = "${local.prefix}-weather"
@@ -70,20 +70,6 @@ resource "aws_lambda_function" "weather" {
     }
   }
   depends_on = [aws_iam_role_policy.weather, aws_cloudwatch_log_group.weather]
-}
-
-resource "aws_scheduler_schedule" "weather_daily" {
-  name                         = "${local.prefix}-weather-daily"
-  schedule_expression          = "cron(0 5 * * ? *)" # 05:00: yesterday's actuals, today's forecast
-  schedule_expression_timezone = var.time_zone       # EventBridge can't follow the phone (D29)
-  flexible_time_window {
-    mode = "OFF"
-  }
-  target {
-    arn      = aws_lambda_function.weather.arn
-    role_arn = aws_iam_role.ingest_schedule.arn
-    input    = "{}"
-  }
 }
 
 resource "aws_cloudwatch_metric_alarm" "weather_errors" {

@@ -143,3 +143,37 @@ def test_tasker_rebuild_keeps_the_latest_fix_for_weather(tmp_path, monkeypatch):
     handler.handler({"source": "tasker"}, None, s3=s3)
     latest = json.loads(open(s3.objects["curated/tasker/locations/latest.json"]).read())
     assert latest == {"lat": -12.34, "lon": 123.45, "time_zone": "Etc/GMT-11"}
+
+
+# --- The 15-minute tick that starts the daily runs at 05:00 phone-local (D31) ---
+
+
+class TickLambda:
+    def __init__(self):
+        self.started = []
+
+    def invoke(self, FunctionName, InvocationType, Payload):
+        self.started.append(FunctionName)
+
+
+def tick(monkeypatch, at: str, fix: dict | None) -> list[str]:
+    monkeypatch.setenv("RAW_BUCKET", "b")
+    monkeypatch.setenv("INGEST_FUNCTION", "ingest")
+    monkeypatch.setenv("WEATHER_FUNCTION", "weather")
+    lam = TickLambda()
+    handler.handler({"source": "tick", "at": at}, None, s3=IngestS3(fix), lam=lam)
+    return lam.started
+
+
+def test_tick_starts_the_daily_runs_only_at_0500_in_the_phone_zone(monkeypatch):
+    # Etc/GMT-11 is UTC+11, so 05:00 local is 18:00 UTC the day before
+    assert tick(monkeypatch, "2030-01-14T18:00:00Z", FIX) == ["ingest", "weather"]
+    assert tick(monkeypatch, "2030-01-14T17:45:00Z", FIX) == []  # 04:45
+    assert tick(monkeypatch, "2030-01-14T18:15:00Z", FIX) == []  # 05:15
+
+
+def test_tick_follows_a_half_hour_zone_and_falls_back_before_the_first_fix(monkeypatch):
+    india = FIX | {"time_zone": "Asia/Kolkata"}  # UTC+05:30: 05:00 local is 23:30 UTC
+    assert tick(monkeypatch, "2030-01-14T23:30:00Z", india) == ["ingest", "weather"]
+    # no fix yet: TIME_ZONE (Etc/GMT-11 in tests, tests/conftest.py)
+    assert tick(monkeypatch, "2030-01-14T18:00:00Z", None) == ["ingest", "weather"]
