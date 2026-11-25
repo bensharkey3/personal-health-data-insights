@@ -2,11 +2,7 @@
 row per data point out, with local_date (D3) and the source platform. Field paths are from the
 record shapes in docs/google-health-api.md; many numbers arrive as strings, so all are cast."""
 
-import os
-
-# IANA zone for steps (whose rollUp windows are UTC, D17) and phone events. Set by Terraform from
-# the TIME_ZONE GitHub secret, so it stays out of the repo (D27).
-TIME_ZONE = os.environ.get("TIME_ZONE", "UTC")
+from transform import locations
 
 _SOURCE = "r->>'$.dataSource.platform' AS platform"
 
@@ -68,11 +64,8 @@ _SLEEP = ", ".join(
 )
 
 # Steps are rollUp windows with no source (one per interval already, D12); empty ones dropped.
-_STEPS = (
-    "((r->>'$.startTime')::TIMESTAMPTZ AT TIME ZONE 'UTC') AS window_start_utc, "
-    f"((r->>'$.startTime')::TIMESTAMPTZ AT TIME ZONE '{TIME_ZONE}')::DATE AS local_date, "
-    "(r->>'$.steps.countSum')::INT AS steps"
-)
+# Their windows are UTC (D17), so local_date comes from the phone's zone at the time (D29).
+_STEPS = "(r->>'$.startTime')::TIMESTAMPTZ AS ts, (r->>'$.steps.countSum')::INT AS steps"
 
 _BRPM = [
     (f"{s}_brpm", f"{s}SleepStats.breathsPerMinute", "DOUBLE")
@@ -153,14 +146,21 @@ SELECTS: dict[str, tuple[str, str]] = {
 }
 
 
-def query(kind: str, files: list[str]) -> str:
-    """One query over the given local .jsonl.gz files. Paths are ours (temp dir), not user input."""
+def query(kind: str, files: list[str], fix_files: list[str] = ()) -> str:
+    """One query over the given local .jsonl.gz files; steps also read the phone's location fixes
+    from the Tasker files. Paths are ours (temp dir), not user input."""
     cols, order = SELECTS[kind]
     points = "rollupDataPoints" if kind == "steps" else "dataPoints"
     paths = ", ".join(f"'{f}'" for f in files)
-    where = "WHERE steps > 0" if kind == "steps" else ""
-    return (
-        f"SELECT * FROM (SELECT {cols} FROM ("
-        f"SELECT unnest(json_extract(json, '$.{points}[*]')) AS r"
-        f" FROM read_ndjson_objects([{paths}]))) {where} ORDER BY {order}"
+    rows = (
+        f"SELECT {cols} FROM (SELECT unnest(json_extract(json, '$.{points}[*]')) AS r"
+        f" FROM read_ndjson_objects([{paths}]))"
     )
+    if kind != "steps":
+        return f"SELECT * FROM ({rows}) ORDER BY {order}"
+    return f"""
+        WITH s AS ({rows}), f AS ({locations.fixes(list(fix_files))})
+        SELECT s.ts AT TIME ZONE 'UTC' AS window_start_utc,
+            (s.ts AT TIME ZONE f.time_zone)::DATE AS local_date, s.steps
+        FROM s ASOF JOIN f ON s.ts >= f.ts
+        WHERE s.steps > 0 ORDER BY {order}"""

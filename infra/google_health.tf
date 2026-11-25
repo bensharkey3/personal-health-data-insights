@@ -15,7 +15,7 @@ data "archive_file" "google_health" {
     for_each = [
       "common/auth.py", "common/raw.py", "common/retry.py", "common/watermark.py",
       "ingest/google_health/client.py", "ingest/google_health/handler.py",
-      "ingest/google_health/webhook.py", "ingest/tasker/handler.py", # one zip for all ingest
+      "ingest/google_health/webhook.py", "ingest/tasker/handler.py", "ingest/weather/handler.py",
     ]
     content {
       content  = file("${path.module}/../src/${source.value}")
@@ -148,7 +148,7 @@ resource "aws_cloudwatch_metric_alarm" "google_health_freshness" {
   alarm_actions       = [aws_sns_topic.alerts.arn]
 }
 
-# --- Daily run for phone steps (D22): phone uploads aren't pushed, so they're picked up once a day ---
+# --- Scheduler role for the 15-minute tick (D31), which starts the daily runs at 05:00 phone-local ---
 
 resource "aws_iam_role" "ingest_schedule" {
   name = "${local.prefix}-ingest-schedule"
@@ -170,23 +170,9 @@ resource "aws_iam_role_policy" "ingest_schedule" {
     Statement = [{
       Effect   = "Allow"
       Action   = "lambda:InvokeFunction"
-      Resource = aws_lambda_function.google_health.arn
+      Resource = aws_lambda_function.transform.arn
     }]
   })
-}
-
-resource "aws_scheduler_schedule" "google_health_daily" {
-  name                         = "${local.prefix}-google-health-daily"
-  schedule_expression          = "cron(15 5 * * ? *)" # 05:15 local: all of yesterday, before I wake
-  schedule_expression_timezone = var.time_zone
-  flexible_time_window {
-    mode = "OFF"
-  }
-  target {
-    arn      = aws_lambda_function.google_health.arn
-    role_arn = aws_iam_role.ingest_schedule.arn
-    input    = "{}" # incremental mode
-  }
 }
 
 # --- Fitbit webhook receiver (D22): a public function URL, guarded by a shared secret ---

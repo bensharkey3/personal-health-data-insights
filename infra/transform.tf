@@ -25,7 +25,9 @@ data "archive_file" "transform" {
   type        = "zip"
   output_path = "${path.module}/build/transform.zip"
   dynamic "source" {
-    for_each = ["transform/handler.py", "transform/google_health.py", "transform/tasker.py"]
+    for_each = ["transform/handler.py", "transform/google_health.py", "transform/tasker.py",
+      "transform/locations.py", "transform/weather.py",
+    ]
     content {
       content  = file("${path.module}/../src/${source.value}")
       filename = source.value
@@ -54,17 +56,30 @@ resource "aws_iam_role_policy" "transform" {
         Effect    = "Allow"
         Action    = "s3:ListBucket"
         Resource  = aws_s3_bucket.raw.arn
-        Condition = { StringLike = { "s3:prefix" = ["raw/google_health/*", "raw/tasker/*"] } }
+        Condition = { StringLike = { "s3:prefix" = ["raw/google_health/*", "raw/tasker/*", "raw/weather/*", "curated/tasker/locations/*"] } }
       },
       {
         Effect   = "Allow"
         Action   = "s3:GetObject"
-        Resource = ["${aws_s3_bucket.raw.arn}/raw/google_health/*", "${aws_s3_bucket.raw.arn}/raw/tasker/*"]
+        Resource = [for p in ["google_health", "tasker", "weather"] : "${aws_s3_bucket.raw.arn}/raw/${p}/*"]
       },
       {
         Effect   = "Allow"
         Action   = "s3:PutObject"
         Resource = "${aws_s3_bucket.raw.arn}/curated/*"
+      },
+      {
+        # The tick reads the phone's zone (D31); ListBucket makes a missing file a 404, not a 403.
+        Effect   = "Allow"
+        Action   = "s3:GetObject"
+        Resource = "${aws_s3_bucket.raw.arn}/curated/tasker/locations/latest.json"
+      },
+      {
+        # The tick starts the daily runs. ARNs from names: both Lambdas also point back here.
+        Effect = "Allow"
+        Action = "lambda:InvokeFunction"
+        Resource = [for n in [local.google_health_name, local.weather_name] :
+        "arn:aws:lambda:ap-southeast-2:${data.aws_caller_identity.current.account_id}:function:${n}"]
       },
       {
         Effect   = "Allow"
@@ -90,11 +105,29 @@ resource "aws_lambda_function" "transform" {
   reserved_concurrent_executions = 1
   environment {
     variables = {
-      RAW_BUCKET = aws_s3_bucket.raw.id
-      TIME_ZONE  = var.time_zone # D27
+      RAW_BUCKET       = aws_s3_bucket.raw.id
+      TIME_ZONE        = var.time_zone # D27
+      INGEST_FUNCTION  = local.google_health_name
+      WEATHER_FUNCTION = local.weather_name
     }
   }
   depends_on = [aws_iam_role_policy.transform, aws_cloudwatch_log_group.transform]
+}
+
+# Every 15 minutes in UTC; the transform starts the daily runs when it's 05:00 where the phone is
+# (D31). 15 minutes, not hourly, so zones with :30 or :45 offsets still hit 05:00.
+resource "aws_scheduler_schedule" "daily_tick" {
+  name                = "${local.prefix}-daily-tick"
+  schedule_expression = "cron(0/15 * * * ? *)"
+  flexible_time_window {
+    mode = "OFF"
+  }
+  target {
+    arn      = aws_lambda_function.transform.arn
+    role_arn = aws_iam_role.ingest_schedule.arn
+    # The scheduled time, not "now", so a tick delayed by a running rebuild keeps its slot.
+    input = jsonencode({ source = "tick", at = "<aws.scheduler.scheduled-time>" })
+  }
 }
 
 resource "aws_cloudwatch_metric_alarm" "transform_errors" {

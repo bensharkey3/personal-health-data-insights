@@ -12,7 +12,7 @@ import pytest
 from common import auth
 from ingest.tasker import handler as receiver
 from transform import handler as transform
-from transform import tasker
+from transform import locations, tasker
 
 SECRET = "Bearer test-secret"
 
@@ -116,6 +116,47 @@ def test_places_by_label(tmp_path):
         ("office", 480.0, date(2030, 1, 15)),
         ("home", 840.0, date(2030, 1, 15)),
     ]
+
+
+# --- Phone location fixes and time zones (D29). Coordinates are synthetic. ---
+
+
+def test_receiver_accepts_location_lines_only_when_well_formed():
+    assert receiver.LINE.match("1900000000,location,-12.34,123.45,Etc/GMT-11")
+    assert receiver.LINE.match("1900000000,location,51.5,-0.12,Europe/London")
+    for bad in ("1900000000,location,-12.34,123.45", "1900000000,location,abc,1,UTC"):
+        assert not receiver.LINE.match(bad), bad
+
+
+def test_local_time_follows_the_latest_phone_fix(tmp_path):
+    fix = epoch(2030, 1, 15, 0)  # from here the phone reports UTC-5 (Etc/GMT+5, reversed sign)
+    lines = [
+        f"{epoch(2030, 1, 14, 12)},screen_on",  # before any fix: fallback Etc/GMT-11, 23:00
+        f"{epoch(2030, 1, 14, 12, 10)},screen_off",
+        f"{fix},location,-12.34,123.45,Etc/GMT+5",
+        f"{epoch(2030, 1, 15, 2)},screen_on",  # 21:00 on the 14th, phone's zone
+        f"{epoch(2030, 1, 15, 2, 20)},screen_off",
+    ]
+    got = rows(tmp_path, "screen_sessions", lines)
+    assert [(r["local_date"], r["start_hour_local"]) for r in got] == [
+        (date(2030, 1, 14), 23),
+        (date(2030, 1, 14), 21),
+    ]
+
+
+def test_locations_one_row_per_local_date_with_the_latest_fix(tmp_path):
+    path = tmp_path / "batch.csv.gz"
+    lines = [
+        f"{epoch(2030, 1, 14, 20)},location,-12.34,123.45,Etc/GMT-11",  # 07:00 on the 15th
+        f"{epoch(2030, 1, 14, 21)},location,-12.35,123.46,Etc/GMT-11",  # later the same morning
+        f"{epoch(2030, 1, 15, 20)},location,10.00,20.00,Not/AZone",  # bad zone: dropped
+        f"{epoch(2030, 1, 15, 20)},screen_on",
+    ]
+    path.write_bytes(gzip.compress(("\n".join(lines) + "\n").encode()))
+    out = str(tmp_path / "out.parquet").replace("\\", "/")
+    transform.write(locations.query([str(path).replace("\\", "/")]), out)
+    got = duckdb.sql(f"SELECT local_date, lat, lon, time_zone FROM '{out}'").fetchall()
+    assert got == [(date(2030, 1, 15), -12.35, 123.46, "Etc/GMT-11")]
 
 
 # --- Tasker project file (D28) ---
