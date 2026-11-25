@@ -1,5 +1,5 @@
-# --- Weather (D30): Open-Meteo at the phone's location (D29). Started by the transform after each
-# phone batch, with the last week's dates and places, so there's no schedule or location config ---
+# --- Weather (D30): yesterday's actuals and today's forecast from Open-Meteo, daily at 05:00, at
+# the phone's latest location fix (D29), so there's no location config ---
 
 locals {
   weather_name = "${local.prefix}-weather"
@@ -15,13 +15,25 @@ resource "aws_iam_role" "weather" {
   assume_role_policy = aws_iam_role.google_health.assume_role_policy
 }
 
-# Least privilege: write its raw prefix, start the transform, log. Open-Meteo needs no key.
+# Least privilege: read the latest fix, write its raw prefix, start the transform, log. Open-Meteo
+# needs no key. ListBucket on the fix's prefix makes a missing file a 404 rather than a 403.
 resource "aws_iam_role_policy" "weather" {
   role = aws_iam_role.weather.name
   name = local.weather_name
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
+      {
+        Effect    = "Allow"
+        Action    = "s3:ListBucket"
+        Resource  = aws_s3_bucket.raw.arn
+        Condition = { StringLike = { "s3:prefix" = ["curated/tasker/locations/*"] } }
+      },
+      {
+        Effect   = "Allow"
+        Action   = "s3:GetObject"
+        Resource = "${aws_s3_bucket.raw.arn}/curated/tasker/locations/latest.json"
+      },
       {
         Effect   = "Allow"
         Action   = "s3:PutObject"
@@ -50,7 +62,7 @@ resource "aws_lambda_function" "weather" {
   filename         = data.archive_file.google_health.output_path # the shared ingest zip
   source_code_hash = data.archive_file.google_health.output_base64sha256
   memory_size      = 128
-  timeout          = 60 # 7 small requests
+  timeout          = 30 # one small request
   environment {
     variables = {
       RAW_BUCKET         = aws_s3_bucket.raw.id
@@ -58,6 +70,20 @@ resource "aws_lambda_function" "weather" {
     }
   }
   depends_on = [aws_iam_role_policy.weather, aws_cloudwatch_log_group.weather]
+}
+
+resource "aws_scheduler_schedule" "weather_daily" {
+  name                         = "${local.prefix}-weather-daily"
+  schedule_expression          = "cron(0 5 * * ? *)" # 05:00: yesterday's actuals, today's forecast
+  schedule_expression_timezone = var.time_zone       # EventBridge can't follow the phone (D29)
+  flexible_time_window {
+    mode = "OFF"
+  }
+  target {
+    arn      = aws_lambda_function.weather.arn
+    role_arn = aws_iam_role.ingest_schedule.arn
+    input    = "{}"
+  }
 }
 
 resource "aws_cloudwatch_metric_alarm" "weather_errors" {

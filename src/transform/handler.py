@@ -5,15 +5,16 @@ merge is needed; rebuilding the same month twice gives the same file.
 Event {"days": {"<type>": ["YYYY-MM-DD", ...]}}: from ingestion, rebuilds the months touched.
 Event {"start": "YYYY-MM", "end": "YYYY-MM"}: rebuilds those months for every type.
 Event {"source": "tasker"}: rebuilds the Tasker tables, and the phone locations, from all their
-raw files (D24, D29), then asks for the last week's weather at the phone's location (D30).
+raw files (D24, D29), plus the latest fix for the 05:00 weather run (D30).
 Steps also read the location lines, for the phone's time zone (D29).
-Event {"source": "weather"}: rebuilds the weather table from the newest raw file per date.
+Event {"source": "weather"}: rebuilds the weather table from every run (newest wins per date).
 Logs counts only, never values."""
 
 import json
 import os
 import tempfile
 from datetime import date
+from pathlib import Path
 
 import boto3
 import duckdb
@@ -71,7 +72,7 @@ def tasker_keys(s3, bucket: str) -> list[str]:
     return sorted(o["Key"] for p in pages for o in p.get("Contents", []))
 
 
-def rebuild_tasker(s3, lam, bucket: str) -> dict[str, int]:
+def rebuild_tasker(s3, bucket: str) -> dict[str, int]:
     keys, rows = tasker_keys(s3, bucket), {}
     if keys:
         with tempfile.TemporaryDirectory() as tmp:
@@ -83,34 +84,38 @@ def rebuild_tasker(s3, lam, bucket: str) -> dict[str, int]:
                 rows[f"tasker/{table}"] = n = write(sql, out)
                 s3.upload_file(out, bucket, f"curated/tasker/{table}/data.parquet")
                 print(f"tasker {table}: {n} rows from {len(keys)} batches")
-            fixes = duckdb.sql(f"SELECT local_date, lat, lon FROM '{out}'").fetchall()
-        if days := weather.recent_days(fixes):  # out is the locations table, written last
-            lam.invoke(
-                FunctionName=os.environ["WEATHER_FUNCTION"],
-                InvocationType="Event",  # async: weather arrives in its own time
-                Payload=json.dumps({"days": days}).encode(),
-            )
+            # The phone's latest fix, for the 05:00 weather run (D30); out is the locations table.
+            last = duckdb.sql(
+                f"SELECT lat, lon, time_zone FROM '{out}' ORDER BY local_date DESC LIMIT 1"
+            ).fetchall()
+            if last:
+                latest = f"{tmp}/latest.json"
+                fix = dict(zip(("lat", "lon", "time_zone"), last[0], strict=True))
+                Path(latest).write_text(json.dumps(fix))
+                s3.upload_file(latest, bucket, "curated/tasker/locations/latest.json")
     return rows
 
 
 def rebuild_weather(s3, bucket: str) -> dict[str, int]:
-    keys = latest_keys(s3, bucket, "raw/weather/daily/dt=")
+    """Every run's file, oldest first: keys sort by dt then run timestamp (weather.query)."""
+    pages = s3.get_paginator("list_objects_v2").paginate(Bucket=bucket, Prefix="raw/weather/")
+    keys = sorted(o["Key"] for p in pages for o in p.get("Contents", []))
     if not keys:
         return {}
     with tempfile.TemporaryDirectory() as tmp:
         out = f"{tmp}/data.parquet"
         n = write(weather.query(download(s3, bucket, keys, tmp, "jsonl")), out)
         s3.upload_file(out, bucket, "curated/weather/daily/data.parquet")
-    print(f"weather: {n} days from {len(keys)} files")
+    print(f"weather: {n} days from {len(keys)} runs")
     return {"weather/daily": n}
 
 
-def handler(event: dict, context: object, s3=None, lam=None) -> dict[str, int]:
-    """Returns rows written per table. Tests pass fake clients; Lambda passes two args."""
+def handler(event: dict, context: object, s3=None) -> dict[str, int]:
+    """Returns rows written per table. Tests pass a fake S3; Lambda passes two args."""
     s3 = s3 or boto3.client("s3")
     bucket = os.environ["RAW_BUCKET"]
     if event.get("source") == "tasker":
-        return rebuild_tasker(s3, lam or boto3.client("lambda"), bucket)
+        return rebuild_tasker(s3, bucket)
     if event.get("source") == "weather":
         return rebuild_weather(s3, bucket)
     rows = {}

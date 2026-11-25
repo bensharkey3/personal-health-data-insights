@@ -1,25 +1,22 @@
 # Step 07: Weather
 
-**Goal:** daily weather alongside the health data, at wherever I actually was that day (D29, D30).
+**Goal:** yesterday's actual weather and today's forecast, at wherever I am (D29, D30).
 
 ## Scope
 
 - Open-Meteo: free, no key or account, Bureau of Meteorology models for Australia, and an archive for history. It's CC BY 4.0, so the step 08 dashboard credits "Weather data by Open-Meteo.com"
-- No fixed location or schedule. After each phone batch, the transform builds `curated/tasker/locations` and invokes `phdi-weather` with the last 7 local dates, each at that day's location fix, carried forward on days without one. Dates before the first fix are skipped. A missed morning is filled in by the next batch
-- `phdi-weather` makes one request per date, covering the date and the evening before, with `timezone=auto` so hours are local to that place. Dates older than 60 days use the archive API. Each response is stored as-is in `raw/weather/daily/dt=<date>/run=<ts>.jsonl.gz`, then the transform rebuilds the table. It logs counts only, never coordinates
-- `curated/weather/daily/data.parquet`, one row per `local_date` from the newest raw file per date (later runs replace forecast values with observed ones): `time_zone`, `temp_max_c`, `temp_min_c`, `apparent_max_c`, `precipitation_mm`, `humidity_pct`, `wind_max_kmh`, `uv_max`, `sunrise_local`, `sunset_local`, `daylight_hours`, and `night_temp_c`, the mean from 22:00 the evening before to 06:00 (the night that ends that morning, D3)
+- `phdi-weather` runs daily at 05:00 local time (EventBridge Scheduler, in the `TIME_ZONE` zone, as it can't follow the phone). It fetches at the phone's latest location fix, which the transform keeps in `curated/tasker/locations/latest.json` after each phone batch. Before the first fix it does nothing
+- One request, `past_days=1&forecast_days=1` with `timezone=auto`: yesterday (actual) and today (forecast), in that place's local time, daily values plus hourly temperature. The response is stored as-is in `raw/weather/daily/dt=<UTC date>/run=<ts>.jsonl.gz`, then the transform rebuilds the table. It logs counts only, never coordinates
+- `curated/weather/daily/data.parquet`, one row per `local_date`, newest run winning, so the next morning replaces a forecast with actuals: `time_zone`, `temp_max_c`, `temp_min_c`, `apparent_max_c`, `precipitation_mm`, `humidity_pct`, `wind_max_kmh`, `uv_max`, `sunrise_local`, `sunset_local`, `daylight_hours`, `is_forecast`, and `night_temp_c`, the mean from 22:00 the evening before to 06:00 (the night that ends that morning, D3), from the newest run per hour
+- The location is the latest fix, normally the previous morning's, so on the morning after a trip the first run may use the old place; the next day's run corrects yesterday. A missed run leaves that day's forecast in place
 
 ## Setup
 
-Nothing beyond step 06: the phone's daily location fix drives it. To fetch weather by hand (laptop, D18):
-```
-aws lambda invoke --function-name phdi-weather --cli-binary-format raw-in-base64-out \
-  --payload '{"days": [{"date": "YYYY-MM-DD", "lat": LAT, "lon": LON}]}' out.json
-```
+Nothing beyond step 06. To run it by hand (laptop, D18): `aws lambda invoke --function-name phdi-weather --payload '{}' out.json`
 
 ## Done when
 
-- A week of weather is in the curated table and joins to sleep on `local_date`
+- A week of weather is in the curated table, with yesterday as actuals and today flagged `is_forecast`, and it joins to sleep on `local_date`
 
 ## Out of scope
 

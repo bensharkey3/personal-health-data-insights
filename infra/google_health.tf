@@ -170,7 +170,7 @@ resource "aws_iam_role_policy" "ingest_schedule" {
     Statement = [{
       Effect   = "Allow"
       Action   = "lambda:InvokeFunction"
-      Resource = aws_lambda_function.google_health.arn
+      Resource = [aws_lambda_function.google_health.arn, aws_lambda_function.weather.arn]
     }]
   })
 }

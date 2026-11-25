@@ -69,12 +69,6 @@ resource "aws_iam_role_policy" "transform" {
         Resource = "${aws_s3_bucket.raw.arn}/curated/*"
       },
       {
-        # Built from the name, not the resource: the weather Lambda also points back here.
-        Effect   = "Allow"
-        Action   = "lambda:InvokeFunction"
-        Resource = "arn:aws:lambda:ap-southeast-2:${data.aws_caller_identity.current.account_id}:function:${local.weather_name}"
-      },
-      {
         Effect   = "Allow"
         Action   = ["logs:CreateLogStream", "logs:PutLogEvents"]
         Resource = "${aws_cloudwatch_log_group.transform.arn}:*"
@@ -98,9 +92,8 @@ resource "aws_lambda_function" "transform" {
   reserved_concurrent_executions = 1
   environment {
     variables = {
-      RAW_BUCKET       = aws_s3_bucket.raw.id
-      TIME_ZONE        = var.time_zone # D27
-      WEATHER_FUNCTION = local.weather_name
+      RAW_BUCKET = aws_s3_bucket.raw.id
+      TIME_ZONE  = var.time_zone # D27
     }
   }
   depends_on = [aws_iam_role_policy.transform, aws_cloudwatch_log_group.transform]
