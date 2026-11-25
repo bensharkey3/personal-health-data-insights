@@ -153,7 +153,7 @@
 		<nme>phdi send</nme>
 		<Action sr="act0" ve="7">
 			<code>129</code>
-			<Str sr="arg0" ve="3">// Runs when Do Not Disturb switches off (bedtime mode ended, D25). Moves the event log
+			<Str sr="arg0" ve="3">// Runs when Do Not Disturb switches off (bedtime mode ended, D25). Adds a location fix, moves the event log
 // aside, POSTs every pending batch, and deletes each only after a 2xx reply, so a failed
 // send is retried next time. Written without less-than or ampersand so it stays plain XML.
 var dir = "/sdcard/phdi";
@@ -163,6 +163,16 @@ var secret = global("PHDI_SECRET");
 function run(cmd) {
   try { return shell(cmd, false, 20) || ""; } catch (e) { return ""; }
 }
+
+// One coarse network fix a day (no GPS) records where the phone is and its time zone, for the
+// weather and local dates (D29). Rounded to about 1 km. Skipped quietly if there's no fix.
+try {
+  getLocation("net", false, 30);
+  var loc = global("LOCN").split(",");
+  var tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  if (loc.length == 2) writeFile(dir + "/events.csv", Math.floor(Date.now() / 1000) + ",location,"
+    + Number(loc[0]).toFixed(2) + "," + Number(loc[1]).toFixed(2) + "," + tz + "\n", true);
+} catch (e) {}
 
 run("mkdir -p " + dir + "/sending");
 run("mv " + dir + "/events.csv " + dir + "/sending/" + Date.now() + ".csv");

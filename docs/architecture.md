@@ -14,7 +14,7 @@ Weather ──schedule──────────────┘             
 | Source | Data | Arrives via | Spec |
 | --- | --- | --- | --- |
 | Google Health API | Heart rate, HRV, sleep, SpO2, respiratory rate, skin temperature, steps (D13). Old Fitbit history; only steps continue from the phone until a Fitbit Air (D11) | Fitbit: webhook, at most every 3 h; phone steps: daily run (D22) | 02–04 |
-| Tasker (Android) | Screen on/off, home/office Wi-Fi presence (D24, D28) | Daily CSV batch, sent when bedtime mode ends, to a Lambda function URL (D25) | 06 |
+| Tasker (Android) | Screen on/off, home/office Wi-Fi presence, a daily rough location and time zone (D24, D28, D29) | Daily CSV batch, sent when bedtime mode ends, to a Lambda function URL (D25) | 06 |
 | Weather API | Daily/hourly weather | EventBridge schedule | 07 |
 
 ## Ingestion and storage
@@ -22,7 +22,7 @@ Weather ──schedule──────────────┘             
 - **Ingestion:** a DynamoDB watermark records each type's last run and newest data point. Each run re-fetches from one day before that newest point, capped at 7 days, so data that syncs days late isn't missed (D2, D20). A backfill mode loads a given range of up to 14 days per run. Backoff on 429/5xx, concurrency 1. Runs start from a Google Health webhook for Fitbit device types (at most once per 3 hours) and a daily 05:15 schedule that picks up phone steps (D22). The full-history backfill waits for step 10 (D14).
 - **Raw:** S3 `raw/<source>/<data_type>/dt=YYYY-MM-DD/run=<UTC timestamp>.jsonl.gz`, one gzipped JSON Lines object per type-day and run, holding the API pages as returned. Runs never overwrite, and empty type-days write nothing (D19). `dt` is the local day requested, or the UTC day for steps (D17). Block public access, encryption and versioning on (D1).
 - **Curated:** `curated/<source>/<data_type>/month=YYYY-MM/data.parquet`, one file per type-month with typed columns, `local_date` and the source platform. Each is rebuilt from the latest raw file of every day in the month, so the duplicates that overlapping runs create never reach it (D23). Query with DuckDB (`read_parquet`) on the laptop or in a Lambda; there's no catalog.
-- **Time:** timestamps in UTC plus a `local_date` column; sleep counts toward the date it ends (D3).
+- **Time:** timestamps in UTC plus a `local_date` column; sleep counts toward the date it ends (D3). Where a record has no local time of its own, the phone's zone at that moment applies (D29).
 - **Retention:** data kept indefinitely; operational leftovers expire (D9).
 
 ## Processing and serving

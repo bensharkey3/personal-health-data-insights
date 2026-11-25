@@ -5,7 +5,7 @@ Raw files are CSV, `<UTC epoch seconds>,<event>` per line. All files are read on
 events are de-duplicated, and malformed lines are dropped. Each `<thing>_on` pairs with the next
 event for the same thing if that's `<thing>_off`; anything else (a lost event) is dropped."""
 
-from transform.google_health import TIME_ZONE
+from transform import locations
 
 TABLES = {  # table -> (things, longest believable interval)
     "screen_sessions": ("('screen')", "12 HOURS"),
@@ -31,12 +31,12 @@ def query(table: str, files: list[str]) -> str:
                 lead(state) OVER w AS next_state, lead(ts) OVER w AS end_ts
             FROM events WHERE thing IN {things}
             WINDOW w AS (PARTITION BY thing ORDER BY ts)
-        )
+        ), f AS ({locations.fixes(files)})
         SELECT {place}start_ts AT TIME ZONE 'UTC' AS start_utc,
             end_ts AT TIME ZONE 'UTC' AS end_utc,
             round(epoch(end_ts - start_ts) / 60, 1) AS minutes,
-            (start_ts AT TIME ZONE '{TIME_ZONE}')::DATE AS local_date,
-            hour(start_ts AT TIME ZONE '{TIME_ZONE}') AS start_hour_local
-        FROM paired
+            (start_ts AT TIME ZONE f.time_zone)::DATE AS local_date,  -- phone's zone then (D29)
+            hour(start_ts AT TIME ZONE f.time_zone) AS start_hour_local
+        FROM paired ASOF JOIN f ON paired.start_ts >= f.ts
         WHERE state = 'on' AND next_state = 'off' AND end_ts - start_ts <= INTERVAL {longest}
         ORDER BY start_utc"""

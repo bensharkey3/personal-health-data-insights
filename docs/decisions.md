@@ -9,7 +9,7 @@ SSM Parameter Store, Lambda function URLs, Terraform state in S3 with native loc
 The device can sync days late, so each run re-fetches a rolling window (72h superseded by D20) and the transform keeps only the latest file per type-day (D23). The DynamoDB watermark records last run and newest data point, for backfill and freshness checks.
 
 ## D3: UTC plus local date
-Timestamps in UTC; curated tables add `local_date` from each record's own civil date or UTC offset; steps, whose windows are UTC, use the `TIME_ZONE` config (D27). Sleep belongs to the date it ends. Raw `dt=` partitions stay UTC.
+Timestamps in UTC; curated tables add `local_date` from each record's own civil date or UTC offset; steps, whose windows are UTC, and phone events use the phone's time zone at the time (D29). Sleep belongs to the date it ends. Raw `dt=` partitions stay UTC.
 
 ## D4: Interim dashboard auth
 From step 08, a CloudFront Function checks a simple credential (from SSM, injected at deploy) until Cognito replaces it in step 09.
@@ -82,7 +82,10 @@ Changes D24's send time. A fixed 03:30 send is unreliable: the phone lies still 
 The phone logger is Automate (LlamaLab): flowcharts are easier to follow and export than Tasker's profiles, and it covers every trigger needed (display, Wi-Fi, Do Not Disturb, file write, HTTP). The receiver only sees CSV lines, so nothing on the AWS side changes. The internal "tasker" names (`phdi-tasker`, `raw/tasker/`, `curated/tasker/`, `/phdi/tasker/secret`, `src/ingest/tasker/`) stay as the source name: renaming would replace the Lambda and its function URL, and move raw files, for no functional gain.
 
 ## D27: Time zone only in config
-The local time zone is the `TIME_ZONE` GitHub secret, passed by Terraform to the scheduler and to the transform Lambda as an environment variable, instead of being written in the code. A time zone narrows down where I live, and the repo is public. Tests use a fixed `Etc/GMT-11` zone. Older commits still contain it; rewriting public history isn't worth it for this.
+Now only the fallback and the schedule's zone (D29). The local time zone is the `TIME_ZONE` GitHub secret, passed by Terraform to the scheduler and to the transform Lambda as an environment variable, instead of being written in the code. A time zone narrows down where I live, and the repo is public. Tests use a fixed `Etc/GMT-11` zone. Older commits still contain it; rewriting public history isn't worth it for this.
 
 ## D28: Tasker from a committed project file
 Supersedes D26. Building Automate flows by hand was too fiddly, and Automate's `.flo` files are binary, so they can't be written as code. Tasker imports a readable XML project, so the whole phone setup lives in the repo (`src/ingest/tasker/phdi.prj.xml`): import it, set two variables, type two network names. Logging uses native Write File actions; only the daily send is JavaScript. A test keeps URLs, the secret and real network names out of the file, since the repo is public.
+
+## D29: Local time and location follow the phone
+Local dates and weather should match where I actually am, including when travelling, not a fixed home. The daily Tasker send adds one coarse network location fix (no GPS, about 1 km after rounding) with the phone's IANA time zone: `<epoch>,location,<lat>,<lon>,<zone>`. Every timestamp without its own local time (steps, phone events) takes the zone of the latest fix at or before it, through a DuckDB ASOF JOIN, so a trip switches zone at the next morning's fix. Other Google Health types already carry the device's local time. `TIME_ZONE` remains only as the fallback before the first fix and as the 05:15 schedule's zone. Fixes are kept in the private bucket, and `curated/tasker/locations` holds one per local date for the weather step.

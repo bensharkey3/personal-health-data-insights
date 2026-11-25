@@ -91,6 +91,19 @@ def test_steps_drop_empty_windows_and_use_local_date(tmp_path):
     assert got["steps"] == 12 and got["local_date"] == date(2030, 1, 16)
 
 
+def test_steps_take_the_phone_zone_from_its_fixes(tmp_path):
+    fixes = tmp_path / "fixes.csv.gz"  # from 12:00 UTC on the 15th the phone reports UTC-5
+    fixes.write_bytes(gzip.compress(b"1894708800,location,1.00,2.00,Etc/GMT+5\n"))
+    pages = [
+        {"rollupDataPoints": [{"startTime": "2030-01-15T13:59:00Z", "steps": {"countSum": "5"}}]}
+    ]
+    out = str(tmp_path / "out.parquet").replace("\\", "/")
+    handler.build(
+        "steps", [write(tmp_path / "in.jsonl.gz", pages)], out, [str(fixes).replace("\\", "/")]
+    )
+    assert duckdb.sql(f"SELECT local_date FROM '{out}'").fetchall() == [(date(2030, 1, 15),)]
+
+
 def test_daily_type(tmp_path):
     point = {
         "dailyRestingHeartRate": {

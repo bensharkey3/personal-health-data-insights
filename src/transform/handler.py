@@ -4,7 +4,8 @@ merge is needed; rebuilding the same month twice gives the same file.
 
 Event {"days": {"<type>": ["YYYY-MM-DD", ...]}}: from ingestion, rebuilds the months touched.
 Event {"start": "YYYY-MM", "end": "YYYY-MM"}: rebuilds those months for every type.
-Event {"source": "tasker"}: rebuilds the Tasker tables from all their raw files (D24).
+Event {"source": "tasker"}: rebuilds the Tasker tables, and the phone locations, from all their
+raw files (D24, D29). Steps also read the location lines, for the phone's time zone (D29).
 Logs counts only, never values."""
 
 import os
@@ -14,7 +15,7 @@ from datetime import date
 import boto3
 import duckdb
 
-from transform import google_health, tasker
+from transform import google_health, locations, tasker
 
 SOURCE = "google_health"
 
@@ -53,8 +54,8 @@ def write(sql: str, out: str) -> int:
     return con.execute(f"SELECT count(*) FROM '{out}'").fetchall()[0][0]
 
 
-def build(kind: str, files: list[str], out: str) -> int:
-    return write(google_health.query(kind, files), out)
+def build(kind: str, files: list[str], out: str, fix_files: list[str] = ()) -> int:
+    return write(google_health.query(kind, files, fix_files), out)
 
 
 def download(s3, bucket: str, keys: list[str], tmp: str, ext: str) -> list[str]:
@@ -64,16 +65,21 @@ def download(s3, bucket: str, keys: list[str], tmp: str, ext: str) -> list[str]:
     return files
 
 
-def rebuild_tasker(s3, bucket: str) -> dict[str, int]:
+def tasker_keys(s3, bucket: str) -> list[str]:
     pages = s3.get_paginator("list_objects_v2").paginate(Bucket=bucket, Prefix="raw/tasker/")
-    keys = sorted(o["Key"] for p in pages for o in p.get("Contents", []))
-    rows = {}
+    return sorted(o["Key"] for p in pages for o in p.get("Contents", []))
+
+
+def rebuild_tasker(s3, bucket: str) -> dict[str, int]:
+    keys, rows = tasker_keys(s3, bucket), {}
     if keys:
         with tempfile.TemporaryDirectory() as tmp:
             files = download(s3, bucket, keys, tmp, "csv")
-            for table in tasker.TABLES:
+            queries = {t: tasker.query(t, files) for t in tasker.TABLES}
+            queries["locations"] = locations.query(files)
+            for table, sql in queries.items():
                 out = f"{tmp}/{table}.parquet"
-                rows[f"tasker/{table}"] = n = write(tasker.query(table, files), out)
+                rows[f"tasker/{table}"] = n = write(sql, out)
                 s3.upload_file(out, bucket, f"curated/tasker/{table}/data.parquet")
                 print(f"tasker {table}: {n} rows from {len(keys)} batches")
     return rows
@@ -93,8 +99,11 @@ def handler(event: dict, context: object, s3=None) -> dict[str, int]:
                 continue
             with tempfile.TemporaryDirectory() as tmp:  # Lambda's /tmp; removed afterwards
                 files = download(s3, bucket, keys, tmp, "jsonl")
+                fix_files = []  # steps need the phone's time zone (D29); the files are tiny
+                if kind == "steps":
+                    fix_files = download(s3, bucket, tasker_keys(s3, bucket), tmp, "fix.csv")
                 out = f"{tmp}/data.parquet"
-                rows[f"{kind}/{month}"] = n = build(kind, files, out)
+                rows[f"{kind}/{month}"] = n = build(kind, files, out, fix_files)
                 s3.upload_file(out, bucket, f"curated/{SOURCE}/{kind}/month={month}/data.parquet")
             print(f"{kind} {month}: {n} rows from {len(keys)} days")
     return rows

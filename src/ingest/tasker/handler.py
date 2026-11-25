@@ -16,7 +16,11 @@ import boto3
 from common import auth, raw
 
 SECRET_PARAM = "/phdi/tasker/secret"  # created by hand (D15), e.g. "Bearer <random>"
-LINE = re.compile(r"^\d{9,11},(screen|home|office)_(on|off)$")
+# An event, or the daily location fix `<epoch>,location,<lat>,<lon>,<IANA zone>` (D29).
+LINE = re.compile(
+    r"^\d{9,11},((screen|home|office)_(on|off)"
+    r"|location,-?\d{1,2}(\.\d+)?,-?\d{1,3}(\.\d+)?,[A-Za-z][A-Za-z0-9_/+-]*)$"
+)
 
 
 def handler(event: dict, context: object, ssm=None, s3=None, lam=None) -> dict:

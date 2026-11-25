@@ -5,11 +5,13 @@
 ## Scope
 
 - Tasker (project file `src/ingest/tasker/phdi.prj.xml`, D28) logs screen on/off and home/office Wi-Fi changes to a local CSV file, one `<UTC epoch seconds>,<event>` line each. Events: `screen_on`, `screen_off`, `home_on`, `home_off`, `office_on`, `office_off`. Network names and coordinates never leave the phone
+- The send first adds one coarse network location fix (no GPS) with the phone's time zone: `<epoch>,location,<lat>,<lon>,<IANA zone>`, rounded to 2 decimals (D29). It drives local dates and the weather location; it's skipped if there's no fix
 - When bedtime mode ends in the morning, Tasker POSTs the batch to the `phdi-tasker` function URL with the shared secret, and deletes it only after a 2xx reply, so a failed send is retried the next morning (D25)
 - The receiver stores the body gzipped as-is in `raw/tasker/events/dt=<UTC date received>/run=<ts>.csv.gz`, then starts the transform. Bodies with no valid lines write nothing
 - The transform rebuilds two tables from all phone raw files on every batch:
   - `curated/tasker/screen_sessions/data.parquet`: `start_utc`, `end_utc`, `minutes`, `local_date`, `start_hour_local`
   - `curated/tasker/places/data.parquet`: `place`, plus the same columns
+  - `curated/tasker/locations/data.parquet`: `local_date`, `lat`, `lon`, `time_zone`, the day's latest fix (D29)
   - Repeated lines from a re-sent batch are removed. An `_on` without a following `_off` is dropped, as are screen sessions over 12 h
 
 ## Setup
