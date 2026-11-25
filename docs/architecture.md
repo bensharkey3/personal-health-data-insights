@@ -5,7 +5,7 @@ Single-user serverless pipeline on AWS. Data flows one way, from sources to a da
 ```
 Fitbit (Google Health) ─webhook─┐   (phone steps: daily schedule)
 Tasker (phone) ──function URL───┼─▶ Ingest Lambdas ─▶ S3 raw JSON ─▶ DuckDB transform ─▶ S3 curated Parquet
-Weather ──schedule──────────────┘                                                          │
+Weather (Open-Meteo) ─Lambda────┘   (after each phone batch, at its location)               │
                                        Dashboard + AI summary (CloudFront) ◀─ Morning chain ┘
 ```
 
@@ -15,7 +15,7 @@ Weather ──schedule──────────────┘             
 | --- | --- | --- | --- |
 | Google Health API | Heart rate, HRV, sleep, SpO2, respiratory rate, skin temperature, steps (D13). Old Fitbit history; only steps continue from the phone until a Fitbit Air (D11) | Fitbit: webhook, at most every 3 h; phone steps: daily run (D22) | 02–04 |
 | Tasker (Android) | Screen on/off, home/office Wi-Fi presence, a daily rough location and time zone (D24, D28, D29) | Daily CSV batch, sent when bedtime mode ends, to a Lambda function URL (D25) | 06 |
-| Weather API | Daily/hourly weather | EventBridge schedule | 07 |
+| Open-Meteo | Daily weather plus the night's temperature, at the phone's location each day (D29, D30) | Started by the transform after each phone batch, for the last 7 days | 07 |
 
 ## Ingestion and storage
 

@@ -26,7 +26,7 @@ data "archive_file" "transform" {
   output_path = "${path.module}/build/transform.zip"
   dynamic "source" {
     for_each = ["transform/handler.py", "transform/google_health.py", "transform/tasker.py",
-      "transform/locations.py",
+      "transform/locations.py", "transform/weather.py",
     ]
     content {
       content  = file("${path.module}/../src/${source.value}")
@@ -56,17 +56,23 @@ resource "aws_iam_role_policy" "transform" {
         Effect    = "Allow"
         Action    = "s3:ListBucket"
         Resource  = aws_s3_bucket.raw.arn
-        Condition = { StringLike = { "s3:prefix" = ["raw/google_health/*", "raw/tasker/*"] } }
+        Condition = { StringLike = { "s3:prefix" = ["raw/google_health/*", "raw/tasker/*", "raw/weather/*"] } }
       },
       {
         Effect   = "Allow"
         Action   = "s3:GetObject"
-        Resource = ["${aws_s3_bucket.raw.arn}/raw/google_health/*", "${aws_s3_bucket.raw.arn}/raw/tasker/*"]
+        Resource = [for p in ["google_health", "tasker", "weather"] : "${aws_s3_bucket.raw.arn}/raw/${p}/*"]
       },
       {
         Effect   = "Allow"
         Action   = "s3:PutObject"
         Resource = "${aws_s3_bucket.raw.arn}/curated/*"
+      },
+      {
+        # Built from the name, not the resource: the weather Lambda also points back here.
+        Effect   = "Allow"
+        Action   = "lambda:InvokeFunction"
+        Resource = "arn:aws:lambda:ap-southeast-2:${data.aws_caller_identity.current.account_id}:function:${local.weather_name}"
       },
       {
         Effect   = "Allow"
@@ -92,8 +98,9 @@ resource "aws_lambda_function" "transform" {
   reserved_concurrent_executions = 1
   environment {
     variables = {
-      RAW_BUCKET = aws_s3_bucket.raw.id
-      TIME_ZONE  = var.time_zone # D27
+      RAW_BUCKET       = aws_s3_bucket.raw.id
+      TIME_ZONE        = var.time_zone # D27
+      WEATHER_FUNCTION = local.weather_name
     }
   }
   depends_on = [aws_iam_role_policy.transform, aws_cloudwatch_log_group.transform]
