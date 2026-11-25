@@ -98,17 +98,24 @@ def rebuild_tasker(s3, bucket: str) -> dict[str, int]:
     return rows
 
 
+def all_keys(s3, bucket: str, prefix: str) -> list[str]:
+    """Every object under prefix, oldest run first: keys sort by dt, then run timestamp."""
+    pages = s3.get_paginator("list_objects_v2").paginate(Bucket=bucket, Prefix=prefix)
+    return sorted(o["Key"] for p in pages for o in p.get("Contents", []))
+
+
 def rebuild_weather(s3, bucket: str) -> dict[str, int]:
-    """Every run's file, oldest first: keys sort by dt then run timestamp (weather.query)."""
-    pages = s3.get_paginator("list_objects_v2").paginate(Bucket=bucket, Prefix="raw/weather/")
-    keys = sorted(o["Key"] for p in pages for o in p.get("Contents", []))
+    keys = all_keys(s3, bucket, "raw/weather/daily/")
+    air_keys = all_keys(s3, bucket, "raw/weather/air_quality/")  # D32
     if not keys:
         return {}
     with tempfile.TemporaryDirectory() as tmp:
         out = f"{tmp}/data.parquet"
-        n = write(weather.query(download(s3, bucket, keys, tmp, "jsonl")), out)
+        files = download(s3, bucket, keys, tmp, "jsonl")
+        air = download(s3, bucket, air_keys, tmp, "air.jsonl")
+        n = write(weather.query(files, air), out)
         s3.upload_file(out, bucket, "curated/weather/daily/data.parquet")
-    print(f"weather: {n} days from {len(keys)} runs")
+    print(f"weather: {n} days from {len(keys)} runs, {len(air_keys)} with air quality")
     return {"weather/daily": n}
 
 

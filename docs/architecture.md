@@ -15,7 +15,7 @@ Weather (Open-Meteo) ─Lambda────┘   (daily 05:00, at the phone's lat
 | --- | --- | --- | --- |
 | Google Health API | Heart rate, HRV, sleep, SpO2, respiratory rate, skin temperature, steps (D13). Old Fitbit history; only steps continue from the phone until a Fitbit Air (D11) | Fitbit: webhook, at most every 3 h; phone steps: daily run (D22) | 02–04 |
 | Tasker (Android) | Screen on/off, home/office Wi-Fi presence, a daily rough location and time zone (D24, D28, D29) | Daily CSV batch, sent when bedtime mode ends, to a Lambda function URL (D25) | 06 |
-| Open-Meteo | Yesterday's actual weather, today's forecast and the night's temperature, at the phone's location (D29, D30) | Daily at 05:00 phone-local (D31) | 07 |
+| Open-Meteo | Yesterday's actual weather and air quality, today's forecast, and the night's temperature and PM2.5, at the phone's location (D29, D30, D32) | Daily at 05:00 phone-local (D31) | 07 |
 
 ## Ingestion and storage
 
