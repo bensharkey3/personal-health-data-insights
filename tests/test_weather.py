@@ -4,10 +4,13 @@ the transform keeps for it. Synthetic data and coordinates only."""
 import gzip
 import io
 import json
+import urllib.error
 import urllib.parse
 from datetime import date
+from email.message import Message
 
 import duckdb
+import pytest
 from test_transform import FakeS3  # pytest puts tests/ on the path
 
 from common import retry
@@ -80,19 +83,58 @@ class FakeLambda:
         self.invokes.append(json.loads(kw["Payload"]))
 
 
-def test_ingest_stores_the_reply_and_starts_the_transform(monkeypatch, capsys):
+def air_reply(yesterday: date, night_pm25: float, day_pm25: float = 5.0) -> dict:
+    """An Open-Meteo air quality reply: hourly values for yesterday and today, local time."""
+    y, t = yesterday.isoformat(), date.fromordinal(yesterday.toordinal() + 1).isoformat()
+    hours = [f"{d}T{h:02}:00" for d in (y, t) for h in range(24)]
+    pm25 = [night_pm25 if f"{y}T22:00" <= x < f"{t}T06:00" else day_pm25 for x in hours]
+    n = len(hours)
+    hourly = {"time": hours, "pm2_5": pm25, "pm10": [10.0] * n, "ozone": [40.0] * n}
+    return {"hourly": hourly | {"nitrogen_dioxide": [3.0] * n, "us_aqi": [20] * (n - 1) + [55]}}
+
+
+def fake_api(monkeypatch, weather_body: dict, air) -> list[str]:
+    """Answers the weather and air quality URLs; air can be an exception to raise."""
+    urls = []
+
+    def urlopen(req, timeout):
+        urls.append(req.full_url)
+        if not req.full_url.startswith(ingest.AIR):
+            return io.BytesIO(json.dumps(weather_body).encode())
+        if isinstance(air, Exception):
+            raise air
+        return io.BytesIO(json.dumps(air).encode())
+
+    monkeypatch.setattr(retry, "urlopen", urlopen)
+    monkeypatch.setattr(retry.time, "sleep", lambda s: None)  # retries skip their waits
+    return urls
+
+
+def test_ingest_stores_weather_and_air_quality_then_starts_the_transform(monkeypatch, capsys):
     monkeypatch.setenv("RAW_BUCKET", "b")
     monkeypatch.setenv("TRANSFORM_FUNCTION", "transform")
-    body = reply(date(2030, 1, 14), 18)
-    monkeypatch.setattr(
-        retry, "urlopen", lambda req, timeout: io.BytesIO(json.dumps(body).encode())
-    )
+    body, air = reply(date(2030, 1, 14), 18), air_reply(date(2030, 1, 14), 30)
+    urls = fake_api(monkeypatch, body, air)
     s3, lam = IngestS3(FIX), FakeLambda()
     assert ingest.handler({}, None, s3=s3, lam=lam) == {"days": 2}
-    [(key, data)] = s3.objects.items()
-    assert key.startswith("raw/weather/daily/dt=") and json.loads(gzip.decompress(data)) == body
+    stored = {k.split("/")[2]: json.loads(gzip.decompress(v)) for k, v in s3.objects.items()}
+    assert stored == {"daily": body, "air_quality": air}
+    q = params(urls[1])
+    assert q["hourly"] == "pm2_5,pm10,ozone,nitrogen_dioxide,us_aqi" and q["past_days"] == "1"
     assert lam.invokes == [{"source": "weather"}]
     assert "-12.3" not in capsys.readouterr().out  # coordinates never logged
+
+
+def test_air_quality_outage_keeps_the_weather_but_fails_the_run(monkeypatch):
+    monkeypatch.setenv("RAW_BUCKET", "b")
+    monkeypatch.setenv("TRANSFORM_FUNCTION", "transform")
+    down = urllib.error.HTTPError(ingest.AIR, 503, "down", Message(), io.BytesIO(b"down"))
+    fake_api(monkeypatch, reply(date(2030, 1, 14), 18), down)
+    s3, lam = IngestS3(FIX), FakeLambda()
+    with pytest.raises(RuntimeError, match="Air quality"):
+        ingest.handler({}, None, s3=s3, lam=lam)
+    assert [k.split("/")[2] for k in s3.objects] == ["daily"]  # the weather is kept
+    assert lam.invokes == [{"source": "weather"}]
 
 
 def test_ingest_waits_for_the_first_fix(monkeypatch):
@@ -108,9 +150,9 @@ def write(tmp_path, name: str, body: dict) -> str:
     return str(path).replace("\\", "/")
 
 
-def table(tmp_path, files: list[str]) -> list[dict]:
+def table(tmp_path, files: list[str], air: list[str] = ()) -> list[dict]:
     out = str(tmp_path / "out.parquet").replace("\\", "/")
-    handler.write(weather.query(files), out)
+    handler.write(weather.query(files, air), out)
     rel = duckdb.sql(f"SELECT * FROM '{out}'")
     return [dict(zip(rel.columns, r, strict=True)) for r in rel.fetchall()]
 
@@ -180,3 +222,28 @@ def test_tick_follows_a_half_hour_zone_and_falls_back_before_the_first_fix(monke
     assert tick(monkeypatch, "2030-01-14T23:30:00Z", india) == ["ingest", "weather"]
     # no fix yet: TIME_ZONE (Etc/GMT-11 in tests, tests/conftest.py)
     assert tick(monkeypatch, "2030-01-14T18:00:00Z", None) == ["ingest", "weather"]
+
+
+def test_air_quality_by_day_with_the_night_and_the_newest_run_per_hour(tmp_path):
+    runs = [write(tmp_path, "a.jsonl.gz", reply(date(2030, 1, 14), 18.0))]
+    air = [  # the newer run reports 8.0 for the 15th's daytime hours, replacing the older 5.0
+        write(tmp_path, "x.jsonl.gz", air_reply(date(2030, 1, 14), 30.0)),
+        write(tmp_path, "y.jsonl.gz", air_reply(date(2030, 1, 15), 12.0, day_pm25=8.0)),
+    ]
+    got = {r["local_date"]: r for r in table(tmp_path, runs, air)}
+    day = got[date(2030, 1, 15)]
+    # 22:00-24:00 on the 14th: 30.0 (older run); 00:00-06:00 on the 15th: 30.0 (older run's night
+    # hours are also the newer run's day hours, so the newer 8.0 wins): (2 * 30 + 6 * 8) / 8
+    assert day["night_pm25"] == 13.5
+    assert (day["pm10_mean"], day["ozone_max"], day["no2_mean"]) == (10.0, 40.0, 3.0)
+    assert day["pm25_max"] == 12.0 and day["aqi_max"] == 20
+    assert got[date(2030, 1, 14)]["pm25_mean"] == 7.1  # (22 * 5 + 2 * 30) / 24
+
+
+def test_weather_without_air_quality_still_builds(tmp_path):
+    [row] = [
+        r
+        for r in table(tmp_path, [write(tmp_path, "a.jsonl.gz", reply(date(2030, 1, 14), 18.0))])
+        if r["is_forecast"]
+    ]
+    assert row["pm25_mean"] is None and row["night_pm25"] is None
