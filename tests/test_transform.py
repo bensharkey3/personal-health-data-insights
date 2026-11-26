@@ -1,9 +1,11 @@
 """Transform: synthetic raw pages in, curated Parquet rows out. Synthetic data only."""
 
 import gzip
+import io
 import json
 import shutil
 from datetime import date
+from pathlib import Path
 
 import duckdb
 import pytest
@@ -152,6 +154,15 @@ class FakeS3:
 
     def upload_file(self, path, bucket, key):
         self.objects[key] = shutil.copy(path, self.store / key.replace("/", "_"))
+
+    def list_objects_v2(self, Bucket, Prefix):
+        return {"KeyCount": sum(k.startswith(Prefix) for k in self.objects)}
+
+    def get_object(self, Bucket, Key):
+        return {"Body": io.BytesIO(Path(self.objects[Key]).read_bytes())}
+
+    def put_object(self, Bucket, Key, Body, **kw):  # the dashboard page, kept as bytes
+        self.objects[f"{Bucket}/{Key}"] = Body
 
 
 def test_latest_file_per_day_wins(tmp_path, monkeypatch):

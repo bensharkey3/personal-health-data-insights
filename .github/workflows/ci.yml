@@ -62,6 +62,10 @@ jobs:
       - run: echo "::add-mask::$(aws sts get-caller-identity --query Account --output text)"
       - run: terraform init -input=false -backend-config="bucket=${{ secrets.TF_STATE_BUCKET }}"
       - run: echo "::add-mask::$(terraform output -raw raw_bucket 2>/dev/null)"
+      - run: echo "::add-mask::$(terraform output -raw site_bucket 2>/dev/null)"
+      - run: | # the dashboard address: never in logs (D34)
+          d=$(aws cloudfront list-distributions --query "DistributionList.Items[?Comment=='phdi-dashboard'].DomainName | [0]" --output text 2>/dev/null)
+          if [ -n "$d" ] && [ "$d" != "None" ]; then echo "::add-mask::$d"; fi
       - run: echo "::add-mask::$(aws lambda get-function-url-config --function-name phdi-google-health-webhook --query FunctionUrl --output text 2>/dev/null)"
       - run: echo "::add-mask::$(aws lambda get-function-url-config --function-name phdi-tasker --query FunctionUrl --output text 2>/dev/null)"
       - run: terraform plan -input=false -no-color -lock-timeout=60s | tee plan.txt
