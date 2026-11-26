@@ -15,7 +15,7 @@ Built in three parts: **8a** the dashboard (below, done first), **8b** the Bedro
 Terraform makes the password, so nothing is needed before merging (D34). After the deploy, in the AWS console in the phone's browser:
 1. Systems Manager → Parameter Store → `/phdi/dashboard/password` → show the decrypted value
 2. CloudFront → Distributions → the one commented `phdi-dashboard` → its distribution domain name
-3. Open that address, sign in as `me` with the password, and bookmark it. The page appears after the next data update, or at once via Lambda → `phdi-transform` → Test with `{"source": "weather"}`
+3. Open that address, sign in as `me` with the password, and bookmark it. Every deploy rebuilds the page (D33), so it's there once the deploy finishes
 
 ## Scope
 
