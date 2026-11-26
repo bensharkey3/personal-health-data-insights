@@ -3,7 +3,8 @@
 Every metric shows its latest value against its usual range, the middle half (25th-75th
 percentile) of the 30 days before it, with a sparkline. The readiness light and illness flag are
 simple rules over last night's values; the step 08b AI summary will sit above them. Device
-metrics without recent data say so instead of failing (D11). The page shows a place name (D35) but never coordinates. Standard library only, apart from DuckDB for the queries."""
+metrics without recent data say so instead of failing (D11). The page shows a place name (D35)
+but never coordinates. Standard library only, apart from DuckDB for the queries."""
 
 import html
 from dataclasses import dataclass
