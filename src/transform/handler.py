@@ -13,6 +13,7 @@ zone it starts the daily ingest and weather runs (D31). DuckDB has the time zone
 After every rebuild (not ticks), the dashboard page is rebuilt from the curated files (D33).
 Logs counts only, never values."""
 
+import gzip
 import json
 import os
 import tempfile
@@ -106,16 +107,28 @@ def all_keys(s3, bucket: str, prefix: str) -> list[str]:
     return sorted(o["Key"] for p in pages for o in p.get("Contents", []))
 
 
+def run_of(key: str) -> str:
+    """The run timestamp in a raw key: .../run=<ts>.jsonl.gz"""
+    return key.rsplit("run=", 1)[-1].split(".")[0]
+
+
 def rebuild_weather(s3, bucket: str) -> dict[str, int]:
     keys = all_keys(s3, bucket, "raw/weather/daily/")
     air_keys = all_keys(s3, bucket, "raw/weather/air_quality/")  # D32
+    place_keys = all_keys(s3, bucket, "raw/weather/place/")  # D35
     if not keys:
         return {}
     with tempfile.TemporaryDirectory() as tmp:
         out = f"{tmp}/data.parquet"
         files = download(s3, bucket, keys, tmp, "jsonl")
         air = download(s3, bucket, air_keys, tmp, "air.jsonl")
-        n = write(weather.query(files, air), out)
+        names = {}  # run timestamp -> place name; a run's files share its timestamp
+        for key, path in zip(
+            place_keys, download(s3, bucket, place_keys, tmp, "place.jsonl"), strict=True
+        ):
+            with gzip.open(path, "rt") as f:
+                names[run_of(key)] = weather.place_name(json.loads(f.readline()))
+        n = write(weather.query(files, air, [names.get(run_of(k)) for k in keys]), out)
         s3.upload_file(out, bucket, "curated/weather/daily/data.parquet")
     print(f"weather: {n} days from {len(keys)} runs, {len(air_keys)} with air quality")
     return {"weather/daily": n}

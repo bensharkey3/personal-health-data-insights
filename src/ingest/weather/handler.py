@@ -1,5 +1,6 @@
 """Lambda: yesterday's actual weather and today's forecast at the phone's location, plus hourly air
-quality for the same days, from Open-Meteo (D30, D32), raw to S3. Runs daily at 06:00 local time.
+quality for the same days, from Open-Meteo (D30, D32), and the place's name from OpenStreetMap
+Nominatim (D35), raw to S3. Runs daily at 06:00 local time.
 
 The location is the phone's latest fix (D29), which the transform keeps in
 curated/tasker/locations/latest.json. `past_days=1&forecast_days=1` with `timezone=auto` returns
@@ -26,6 +27,8 @@ FORECAST = "https://api.open-meteo.com/v1/forecast"
 ARCHIVE = "https://archive-api.open-meteo.com/v1/archive"  # history, a few days' delay
 AIR = "https://air-quality-api.open-meteo.com/v1/air-quality"  # modelled (CAMS) outside Europe
 AIR_HOURLY = ["pm2_5", "pm10", "ozone", "nitrogen_dioxide", "us_aqi"]
+PLACE = "https://nominatim.openstreetmap.org/reverse"  # OpenStreetMap, free, fair use (D35)
+USER_AGENT = "phdi-weather/1.0"  # Nominatim asks apps to identify themselves; nothing personal
 LATEST_FIX = "curated/tasker/locations/latest.json"
 DAILY = [
     "temperature_2m_max",
@@ -69,6 +72,14 @@ def air_url(fix: dict, event: dict) -> str:
     return f"{AIR}?{urllib.parse.urlencode(query)}"
 
 
+def place_url(fix: dict) -> str:
+    """Reverse geocoding at suburb level (zoom 14), in English, for the dashboard's heading."""
+    query = {"lat": f"{fix['lat']:.2f}", "lon": f"{fix['lon']:.2f}", "zoom": 14}
+    return (
+        f"{PLACE}?{urllib.parse.urlencode(query | {'format': 'jsonv2', 'accept-language': 'en'})}"
+    )
+
+
 def latest_fix(s3, bucket: str) -> dict | None:
     """None before the first fix. Listed first: with ListBucket scoped to a prefix, S3 answers a
     read of a missing key with 403, not 404, so a read can't tell "missing" from "forbidden"."""
@@ -101,6 +112,11 @@ def handler(event: dict, context: object, s3=None, lam=None) -> dict[str, int]:
         store("air_quality", air, len(air.get("hourly", {}).get("time", [])))
     except urllib.error.HTTPError as e:
         air_error = f"HTTP {e.code} {e.read().decode()[:300]}"
+    try:  # the place name is only a label, so a failure is logged, not raised (D35)
+        place = retry.call(Request(place_url(fix), headers={"User-Agent": USER_AGENT}))
+        store("place", place, 1 if place.get("address") else 0)
+    except urllib.error.HTTPError as e:
+        print(f"place: HTTP {e.code}")  # the reply body could name the place, so it's not logged
     print(f"weather: {days} days written; air quality {air_error or 'written'}")
     if days:  # async: the transform rebuilds the weather table in its own time
         lam.invoke(

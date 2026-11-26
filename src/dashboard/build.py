@@ -3,8 +3,7 @@
 Every metric shows its latest value against its usual range, the middle half (25th-75th
 percentile) of the 30 days before it, with a sparkline. The readiness light and illness flag are
 simple rules over last night's values; the step 08b AI summary will sit above them. Device
-metrics without recent data say so instead of failing (D11). The page has no coordinates or place
-names. Standard library only, apart from DuckDB for the queries."""
+metrics without recent data say so instead of failing (D11). The page shows a place name (D35) but never coordinates. Standard library only, apart from DuckDB for the queries."""
 
 import html
 from dataclasses import dataclass
@@ -181,19 +180,23 @@ def card(s: Status, today: date) -> str:
     )
 
 
-def weather(root: Path) -> str:
-    """Yesterday's actuals and today's forecast (D30, D32)."""
+def weather(root: Path) -> tuple[str, str]:
+    """(place, table): yesterday's actuals and today's forecast (D30, D32), and where (D35).
+    A row from a different place than today's (after travelling) names its own place."""
     path = (root / "curated/weather/daily/data.parquet").as_posix()
-    try:
-        rows = duckdb.sql(
-            f"SELECT local_date, is_forecast, temp_min_c, temp_max_c, precipitation_mm,"
-            f" uv_max, pm25_mean, aqi_max FROM '{path}' ORDER BY local_date DESC LIMIT 2"
-        ).fetchall()
+    try:  # by column name, so a table from before places (D35) still shows
+        rel = duckdb.sql(f"SELECT * FROM '{path}' ORDER BY local_date DESC LIMIT 2")
+        rows = [dict(zip(rel.columns, r, strict=True)) for r in rel.fetchall()]
     except duckdb.IOException:
-        return '<p class="none">No weather yet.</p>'
+        return "", '<p class="none">No weather yet.</p>'
+    here = rows[0].get("place") if rows else None
     out = []
-    for d, forecast, lo, hi, rain, uv, pm, aqi in reversed(rows):
-        label = "Today (forecast)" if forecast else f"{d:%a %d %b}"
+    for r in reversed(rows):
+        label = "Today (forecast)" if r["is_forecast"] else f"{r['local_date']:%a %d %b}"
+        if r.get("place") and r["place"] != here:
+            label += f"<br><small>{html.escape(r['place'])}</small>"
+        lo, hi, rain, uv = r["temp_min_c"], r["temp_max_c"], r["precipitation_mm"], r["uv_max"]
+        pm, aqi = r.get("pm25_mean"), r.get("aqi_max")
 
         def f(x, unit="", digits=0):
             return "–" if x is None else f"{x:,.{digits}f}{unit}"
@@ -202,7 +205,7 @@ def weather(root: Path) -> str:
             f"<tr><th>{label}</th><td>{f(lo)}–{f(hi, '°C')}</td><td>{f(rain, ' mm', 1)}</td>"
             f"<td>UV {f(uv)}</td><td>PM2.5 {f(pm, '', 1)}</td><td>AQI {f(aqi)}</td></tr>"
         )
-    return f'<table class="wx">{"".join(out)}</table>'
+    return (html.escape(here) if here else ""), f'<table class="wx">{"".join(out)}</table>'
 
 
 CHART_DAYS, CHART_WEEKS, CHART_MONTHS = 30, 12, 12
@@ -298,6 +301,7 @@ def build(root: Path, today: date, built_at: str) -> str:
     colour, reason = readiness(by_name, today)
     flag = illness(by_name)
     template = Template((Path(__file__).parent / "page.html").read_text())
+    place, table = weather(root)
     return template.substitute(
         today=f"{today:%A %d %B %Y}",
         colour=colour,
@@ -309,7 +313,8 @@ def build(root: Path, today: date, built_at: str) -> str:
             else ""
         ),
         cards="".join(card(s, today) for s in statuses),
-        weather=weather(root),
+        place=f" · {place}" if place else "",
+        weather=table,
         steps=period_charts(root, today, "Steps"),
         screen=period_charts(root, today, "Screen time", " h"),
         built_at=html.escape(built_at),

@@ -154,3 +154,18 @@ def test_screen_time_charts_in_hours(tmp_path):
     assert "Yesterday 1.5 h" in html and "This week 1.5 h a day" in html
     assert "<title>30 Jan: 1.5 h</title>" in html
     assert "No screen time data yet." in build.period_charts(tmp_path / "x", TODAY, "Screen time")
+
+
+def test_weather_heading_names_the_place_and_a_travelled_day(tmp_path):
+    write(
+        tmp_path / "curated/weather/daily/data.parquet",
+        "SELECT * FROM (VALUES"
+        " (DATE '2030-01-30', false, 12.0, 25.0, 0.5, 8.0, 15.0, 4.0, 'Elsewhere <b>'),"
+        " (DATE '2030-01-31', true, 13.0, 28.0, 0.0, 9.0, NULL, NULL, 'Testville, Sample City'))"
+        " t(local_date, is_forecast, temp_min_c, temp_max_c, precipitation_mm, uv_max,"
+        " night_temp_c, night_pm25, place)",
+    )
+    place, table = build.weather(tmp_path)
+    assert place == "Testville, Sample City"
+    assert "<small>Elsewhere &lt;b&gt;</small>" in table  # yesterday was elsewhere; escaped
+    assert "Weather and air · Testville, Sample City" in build.build(tmp_path, TODAY, "t")
