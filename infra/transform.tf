@@ -26,7 +26,8 @@ data "archive_file" "transform" {
   output_path = "${path.module}/build/transform.zip"
   dynamic "source" {
     for_each = ["transform/handler.py", "transform/google_health.py", "transform/tasker.py",
-      "transform/locations.py", "transform/weather.py",
+      "transform/locations.py", "transform/weather.py", "dashboard/build.py",
+      "dashboard/page.html",
     ]
     content {
       content  = file("${path.module}/../src/${source.value}")
@@ -56,7 +57,7 @@ resource "aws_iam_role_policy" "transform" {
         Effect    = "Allow"
         Action    = "s3:ListBucket"
         Resource  = aws_s3_bucket.raw.arn
-        Condition = { StringLike = { "s3:prefix" = ["raw/google_health/*", "raw/tasker/*", "raw/weather/*", "curated/tasker/locations/*"] } }
+        Condition = { StringLike = { "s3:prefix" = ["raw/google_health/*", "raw/tasker/*", "raw/weather/*", "curated/*"] } }
       },
       {
         Effect   = "Allow"
@@ -69,10 +70,15 @@ resource "aws_iam_role_policy" "transform" {
         Resource = "${aws_s3_bucket.raw.arn}/curated/*"
       },
       {
-        # The tick reads the phone's zone (D31), after listing it to see if it exists yet.
+        # The tick reads the phone's zone (D31) and the dashboard reads the curated tables (D33).
         Effect   = "Allow"
         Action   = "s3:GetObject"
-        Resource = "${aws_s3_bucket.raw.arn}/curated/tasker/locations/latest.json"
+        Resource = "${aws_s3_bucket.raw.arn}/curated/*"
+      },
+      {
+        Effect   = "Allow"
+        Action   = "s3:PutObject"
+        Resource = "${aws_s3_bucket.site.arn}/index.html"
       },
       {
         # The tick starts the daily runs. ARNs from names: both Lambdas also point back here.
@@ -109,6 +115,7 @@ resource "aws_lambda_function" "transform" {
       TIME_ZONE        = var.time_zone # D27
       INGEST_FUNCTION  = local.google_health_name
       WEATHER_FUNCTION = local.weather_name
+      SITE_BUCKET      = aws_s3_bucket.site.id
     }
   }
   depends_on = [aws_iam_role_policy.transform, aws_cloudwatch_log_group.transform]

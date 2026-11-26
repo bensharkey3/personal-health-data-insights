@@ -2,6 +2,24 @@
 
 **Goal:** each morning, a fresh dashboard and AI summary of last night's sleep and readiness.
 
+Built in three parts: **8a** the dashboard (below, done first), **8b** the Bedrock summary and weekly insights, **8c** the push to my phone. The scope list after 8a covers all three.
+
+## 8a: Dashboard
+
+- `src/dashboard/build.py` builds one static page from the curated Parquet, phone-sized, light and dark, no JavaScript: a readiness light with its reason, an illness flag, weather and air quality (yesterday's actuals, today's forecast), and a card per metric showing the latest value against its usual range (the middle half of the previous 30 days), ▲/▼ outside it, and a 30-day SVG sparkline. Missing device data shows as "no data since …" (D11)
+- The transform rebuilds it after every data rebuild, not on ticks, and puts `index.html` in the private site bucket (D33). Today's date comes from the phone's zone (D29)
+- CloudFront serves it over HTTPS from the default `*.cloudfront.net` address, with a CloudFront Function checking HTTP Basic auth against a SHA-256 hash (D34). The address is never output or logged
+
+### Setup (once, a laptop session can run it)
+
+1. `aws ssm put-parameter --name /phdi/dashboard/password --type SecureString --value "$(openssl rand -hex 16)"`
+2. Hash the header the browser will send and store it as a GitHub secret, before merging:
+   ```
+   P=$(aws ssm get-parameter --name /phdi/dashboard/password --with-decryption --query Parameter.Value --output text)
+   printf 'Basic %s' "$(printf 'me:%s' "$P" | base64)" | sha256sum | cut -d' ' -f1 | gh secret set DASHBOARD_AUTH_SHA256; unset P
+   ```
+3. After deploy, get the address with `aws cloudfront list-distributions --query "DistributionList.Items[?Comment=='phdi-dashboard'].DomainName" --output text`, open it on the phone, sign in as `me` with the password, and bookmark it. Invoke the transform with `{"source": "weather"}` to build the first page
+
 ## Scope
 
 - Trigger: completed sleep session arrives via webhook (no fixed time). Until a Fitbit Air there is no new sleep data, so start on a daily schedule, and show device metrics as missing rather than failing (D11)

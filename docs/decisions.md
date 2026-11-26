@@ -98,3 +98,9 @@ The daily Google Health ingest and the weather run start at 05:00 in the phone's
 
 ## D32: Air quality from Open-Meteo, alongside the weather
 Smoke and particles can affect sleep, so the 05:00 weather run also asks Open-Meteo's Air Quality API for hourly PM2.5, PM10, ozone, nitrogen dioxide and US AQI at the same place and days, and the weather table gains daily summaries plus overnight PM2.5. It's free, needs no key and follows the phone like the weather. Outside Europe it's modelled (CAMS global, about 40 km), not measured: fine for trends and smoke events. EPA Victoria's measured AirWatch data was the alternative, but it needs a key and only covers Victoria. US AQI because it's widely known and Australia has no single national index.
+
+## D33: Dashboard rebuilt by the transform, no Step Functions yet
+The page is a few small DuckDB queries over the curated files, so the transform rebuilds it at the end of every data rebuild (ingest, webhook, phone batch, weather) and it's always fresh within minutes of a sync. A Step Functions chain adds cost and moving parts for no gain yet; it can come with step 08b if the morning work grows. Charts are inline SVG drawn in Python, so there's no chart library or JavaScript.
+
+## D34: Dashboard login by a hashed Basic auth header
+Until Cognito (step 09), a CloudFront Function asks for a password with HTTP Basic auth and compares the SHA-256 of the `Authorization` header with a hash from the `DASHBOARD_AUTH_SHA256` GitHub secret. The password is random, created on the laptop and kept in SSM, never in Terraform, its state or the repo; the hash of a long random password is no use to anyone who sees it. The browser remembers the login. The CloudFront address is masked in the Actions logs and never output.

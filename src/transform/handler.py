@@ -10,17 +10,19 @@ Steps also read the location lines, for the phone's time zone (D29).
 Event {"source": "weather"}: rebuilds the weather table from every run (newest wins per date).
 Event {"source": "tick", "at": "<UTC time>"}: every 15 minutes; at 05:00 in the phone's current
 zone it starts the daily ingest and weather runs (D31). DuckDB has the time zone data for it.
+After every rebuild (not ticks), the dashboard page is rebuilt from the curated files (D33).
 Logs counts only, never values."""
 
 import json
 import os
 import tempfile
-from datetime import date, datetime, time
+from datetime import UTC, date, datetime, time, timedelta
 from pathlib import Path
 
 import boto3
 import duckdb
 
+from dashboard import build as dashboard
 from transform import google_health, locations, tasker, weather
 
 SOURCE = "google_health"
@@ -149,12 +151,48 @@ def tick(s3, lam, bucket: str, at: str) -> dict[str, int]:
     return {"daily_runs": 2}
 
 
+DASHBOARD_MONTHS = 3  # Google Health months mirrored for the page: 30 shown + 30 for "usual"
+
+
+def publish(s3, bucket: str) -> None:
+    """Rebuild the dashboard from the curated files and put it in the site bucket (D33)."""
+    zone = phone_zone(s3, bucket)
+    now = datetime.now(UTC)
+    today = duckdb.sql(f"SELECT (TIMESTAMPTZ '{now.isoformat()}' AT TIME ZONE '{zone}')::DATE")
+    today = today.fetchall()[0][0]
+    oldest = f"month={(today - timedelta(31 * DASHBOARD_MONTHS)):%Y-%m}"
+    keys = [
+        k
+        for k in all_keys(s3, bucket, "curated/")
+        if k.endswith(".parquet") and ("/month=" not in k or k.split("/")[-2] >= oldest)
+    ]
+    with tempfile.TemporaryDirectory() as tmp:
+        for key in keys:  # mirror the layout, so the page's globs see the same paths
+            Path(tmp, key).parent.mkdir(parents=True, exist_ok=True)
+            s3.download_file(bucket, key, str(Path(tmp, key)))
+        page = dashboard.build(Path(tmp), today, f"{now:%Y-%m-%d %H:%M} UTC")
+    s3.put_object(
+        Bucket=os.environ["SITE_BUCKET"],
+        Key="index.html",
+        Body=page.encode(),
+        ContentType="text/html; charset=utf-8",
+        CacheControl="no-cache",  # always revalidate: the page changes with every rebuild
+    )
+    print(f"dashboard: built from {len(keys)} files")
+
+
 def handler(event: dict, context: object, s3=None, lam=None) -> dict[str, int]:
     """Returns rows written per table. Tests pass fake clients; Lambda passes two args."""
     s3 = s3 or boto3.client("s3")
     bucket = os.environ["RAW_BUCKET"]
     if event.get("source") == "tick":
         return tick(s3, lam or boto3.client("lambda"), bucket, event["at"])
+    rows = rebuild(event, s3, bucket)
+    publish(s3, bucket)
+    return rows
+
+
+def rebuild(event: dict, s3, bucket: str) -> dict[str, int]:
     if event.get("source") == "tasker":
         return rebuild_tasker(s3, bucket)
     if event.get("source") == "weather":

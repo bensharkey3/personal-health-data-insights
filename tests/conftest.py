@@ -4,3 +4,4 @@ keeps local-date tests independent of any real place and its daylight saving (D2
 import os
 
 os.environ.setdefault("TIME_ZONE", "Etc/GMT-11")
+os.environ.setdefault("SITE_BUCKET", "site")  # where the transform puts the dashboard
