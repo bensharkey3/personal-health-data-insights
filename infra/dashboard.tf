@@ -44,8 +44,24 @@ resource "aws_cloudfront_origin_access_control" "site" {
   signing_protocol                  = "sigv4"
 }
 
-# Interim login until Cognito (D4, D34): HTTP Basic auth, checked against a hash only, so neither
-# the password nor the header is in Terraform, its state or the logs.
+# Interim login until Cognito (D4, D34): HTTP Basic auth as "me" with a password Terraform makes,
+# so setup needs no laptop. It's kept in SSM (read it in the console) and in the private state;
+# the function holds only a hash of the expected header. New password: taint the resource.
+resource "random_password" "dashboard" {
+  length  = 24
+  special = false
+}
+
+resource "aws_ssm_parameter" "dashboard_password" {
+  name  = "/${local.prefix}/dashboard/password"
+  type  = "SecureString"
+  value = random_password.dashboard.result
+}
+
+locals {
+  dashboard_auth_sha256 = sha256("Basic ${base64encode("me:${random_password.dashboard.result}")}")
+}
+
 resource "aws_cloudfront_function" "auth" {
   name    = "${local.prefix}-dashboard-auth"
   runtime = "cloudfront-js-2.0"
@@ -54,7 +70,7 @@ resource "aws_cloudfront_function" "auth" {
     import crypto from 'crypto';
     function handler(event) {
       var h = event.request.headers.authorization;
-      if (h && crypto.createHash('sha256').update(h.value).digest('hex') === '${var.dashboard_auth_sha256}') {
+      if (h && crypto.createHash('sha256').update(h.value).digest('hex') === '${local.dashboard_auth_sha256}') {
         return event.request;
       }
       return { statusCode: 401, statusDescription: 'Unauthorized',

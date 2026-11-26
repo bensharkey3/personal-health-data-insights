@@ -23,7 +23,6 @@ jobs:
     env:
       TF_VAR_alert_email: ${{ secrets.ALERT_EMAIL }}
       TF_VAR_time_zone: ${{ secrets.TIME_ZONE }}
-      TF_VAR_dashboard_auth_sha256: ${{ secrets.DASHBOARD_AUTH_SHA256 }}
     steps:
       - uses: actions/checkout@v7
       - uses: hashicorp/setup-terraform@v4

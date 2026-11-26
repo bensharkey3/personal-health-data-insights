@@ -12,6 +12,10 @@ terraform {
       source  = "hashicorp/archive"
       version = "~> 2.7"
     }
+    random = { # the dashboard password (D34)
+      source  = "hashicorp/random"
+      version = "~> 3.7"
+    }
   }
   backend "s3" {
     key          = "main/terraform.tfstate"
