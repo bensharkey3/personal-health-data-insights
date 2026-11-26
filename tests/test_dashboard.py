@@ -100,3 +100,8 @@ def test_day_totals_skip_todays_unfinished_day(tmp_path):
     )
     [(last, value)] = build.series(tmp_path, metric("Steps"), TODAY)[-1:]
     assert (last, value) == (date(2030, 1, 30), 5000.0)
+
+
+def test_numbers_have_thousands_separators():
+    steps = build.status(metric("Steps"), days([4000.0] * 8 + [12345.0]))
+    assert "12,345" in build.card(steps, TODAY) and "4,000–4,000" in build.card(steps, TODAY)

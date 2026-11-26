@@ -159,7 +159,7 @@ def sparkline(values: list[float], width: int = 120, height: int = 28) -> str:
 
 
 def card(s: Status, today: date) -> str:
-    m, fmt = s.metric, f"{{:.{s.metric.digits}f}}"
+    m, fmt = s.metric, f"{{:,.{s.metric.digits}f}}"  # 12,345
     name = html.escape(m.name)
     if not s.latest:
         return f'<div class="card none"><h3>{name}</h3><p class="v">No data yet</p></div>'
@@ -196,7 +196,7 @@ def weather(root: Path) -> str:
         label = "Today (forecast)" if forecast else f"{d:%a %d %b}"
 
         def f(x, unit="", digits=0):
-            return "–" if x is None else f"{x:.{digits}f}{unit}"
+            return "–" if x is None else f"{x:,.{digits}f}{unit}"
 
         out.append(
             f"<tr><th>{label}</th><td>{f(lo)}–{f(hi, '°C')}</td><td>{f(rain, ' mm', 1)}</td>"
