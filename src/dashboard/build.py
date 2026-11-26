@@ -205,6 +205,82 @@ def weather(root: Path) -> str:
     return f'<table class="wx">{"".join(out)}</table>'
 
 
+STEPS_DAYS, STEPS_WEEKS, STEPS_MONTHS = 30, 12, 12
+
+
+def bars(points: list[tuple[str, float | None]], partial_last: bool = False) -> str:
+    """An SVG bar chart, one bar per point (label, value); None leaves a gap. The last bar is
+    drawn lighter when its period isn't over yet. Each bar's <title> shows on long-press."""
+    width, height, label_h = 300, 80, 12
+    top = max((v for _, v in points if v is not None), default=0) or 1
+    step = width / len(points)
+    every = max(1, len(points) // 4)  # a few labels, so they never overlap on a phone
+    out = []
+    for i, (label, v) in enumerate(points):
+        x = i * step
+        if v is not None:
+            h = v / top * (height - label_h - 2)
+            cls = "bar partial" if partial_last and i == len(points) - 1 else "bar"
+            out.append(
+                f'<rect class="{cls}" x="{x + step * 0.1:.1f}" y="{height - label_h - h:.1f}"'
+                f' width="{step * 0.8:.1f}" height="{h:.1f}">'
+                f"<title>{html.escape(label)}: {v:,.0f}</title></rect>"
+            )
+        last = len(points) - 1
+        if i == last or (i % every == 0 and last - i >= every / 2):  # no crowding at the end
+            pos = f'x="{x + step / 2:.1f}" text-anchor="middle"'
+            if i in (0, last):  # edge labels align inwards, so they aren't cut off
+                pos = 'x="0" text-anchor="start"' if i == 0 else f'x="{width}" text-anchor="end"'
+            out.append(f'<text {pos} y="{height - 2}">{html.escape(label)}</text>')
+    return f'<svg viewBox="0 0 {width} {height}" class="bars" role="img">{"".join(out)}</svg>'
+
+
+def _month(d: date, back: int) -> date:
+    """The first day of the month `back` months before d's month."""
+    n = d.year * 12 + d.month - 1 - back
+    return date(n // 12, n % 12 + 1, 1)
+
+
+def steps_charts(root: Path, today: date) -> str:
+    """Steps by day (totals), and by week and month (average a day over the days with data).
+    Only complete days count, so today is left out (#46)."""
+    steps = next(m for m in METRICS if m.name == "Steps")
+    days = dict(series(root, steps, today))
+    if not days:
+        return '<p class="none">No steps data yet.</p>'
+
+    def averages(start_of) -> dict[date, float]:
+        groups: dict[date, list[float]] = {}
+        for d, v in days.items():
+            groups.setdefault(start_of(d), []).append(v)
+        return {k: sum(v) / len(v) for k, v in groups.items()}
+
+    weeks = averages(lambda d: d - timedelta(d.weekday()))  # ISO weeks start on Monday
+    months = averages(lambda d: d.replace(day=1))
+    this_week = today - timedelta(today.weekday())
+    daily = [(today - timedelta(n)) for n in range(STEPS_DAYS, 0, -1)]
+    weekly = [this_week - timedelta(7 * n) for n in range(STEPS_WEEKS - 1, -1, -1)]
+    monthly = [_month(today, n) for n in range(STEPS_MONTHS - 1, -1, -1)]
+
+    def latest(name: str, value: float | None, unit: str = "") -> str:
+        return f"<p>{name} {'–' if value is None else f'{value:,.0f}'}{unit}</p>"
+
+    return "".join(
+        [
+            '<div class="chart"><h3>By day</h3>',
+            latest("Yesterday", days.get(today - timedelta(1))),
+            bars([(f"{d:%d %b}", days.get(d)) for d in daily]),
+            '</div><div class="chart"><h3>By week, average a day</h3>',
+            latest("This week", weeks.get(this_week), " a day"),
+            bars([(f"{d:%d %b}", weeks.get(d)) for d in weekly], partial_last=True),
+            '</div><div class="chart"><h3>By month, average a day</h3>',
+            latest("This month", months.get(_month(today, 0)), " a day"),
+            bars([(f"{d:%b}", months.get(d)) for d in monthly], partial_last=True),
+            "</div>",
+        ]
+    )
+
+
 def build(root: Path, today: date, built_at: str) -> str:
     """The page for local date `today`, from curated files mirrored under `root`."""
     statuses = [status(m, series(root, m, today)) for m in METRICS]
@@ -224,5 +300,6 @@ def build(root: Path, today: date, built_at: str) -> str:
         ),
         cards="".join(card(s, today) for s in statuses),
         weather=weather(root),
+        steps=steps_charts(root, today),
         built_at=html.escape(built_at),
     )

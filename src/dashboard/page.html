@@ -33,6 +33,13 @@
   .wx { width: 100%; background: var(--card); border-radius: 12px; padding: 8px;
         font-size: .85rem; border-spacing: 6px 4px; }
   .wx th { text-align: left; font-weight: 500; }
+  .chart { background: var(--card); border-radius: 12px; padding: 10px 12px; margin-bottom: 10px; }
+  .chart h3 { margin: 0; font-size: .8rem; color: var(--muted); font-weight: 500; }
+  .chart p { margin: 2px 0 4px; font-size: 1.1rem; font-weight: 600; }
+  .bars { width: 100%; height: auto; }
+  .bars .bar { fill: var(--line); }
+  .bars .partial { opacity: .45; }
+  .bars text { font-size: 9px; fill: var(--muted); }
   footer { margin: 24px 0 8px; font-size: .75rem; color: var(--muted); }
 </style>
 </head>
@@ -43,6 +50,8 @@
   $illness
   <h2>Weather and air</h2>
   $weather
+  <h2>Steps</h2>
+  $steps
   <h2>Compared with usual</h2>
   <div class="grid">$cards</div>
   <footer>Usual = middle half of the previous 30 days. ▲▼ outside it.

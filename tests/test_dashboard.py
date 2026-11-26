@@ -105,3 +105,40 @@ def test_day_totals_skip_todays_unfinished_day(tmp_path):
 def test_numbers_have_thousands_separators():
     steps = build.status(metric("Steps"), days([4000.0] * 8 + [12345.0]))
     assert "12,345" in build.card(steps, TODAY) and "4,000–4,000" in build.card(steps, TODAY)
+
+
+# --- Steps charts ---
+
+
+def steps_file(tmp_path, rows: str) -> None:
+    """rows: a SELECT of (local_date, steps) for one synthetic steps file."""
+    write(tmp_path / "curated/google_health/steps/month=2030-01/data.parquet", rows)
+
+
+def test_steps_charts_by_day_week_and_month(tmp_path):
+    # Thursday 2030-01-31 is today. Mon 28 - Wed 30 have 6,000; Mon 21 - Sun 27 have 3,000 except
+    # Sunday 27, which is missing; today's partial 517 must not count anywhere.
+    steps_file(
+        tmp_path,
+        "SELECT DATE '2030-01-28' + i::INT AS local_date, 6000 AS steps FROM range(3) t(i)"
+        " UNION ALL SELECT DATE '2030-01-21' + i::INT, 3000 FROM range(6) t(i)"
+        " UNION ALL SELECT DATE '2030-01-31', 517",
+    )
+    html = build.steps_charts(tmp_path, TODAY)
+    assert "Yesterday 6,000" in html  # Wed 30
+    assert "This week 6,000 a day" in html  # Mon-Wed only: today is still counting
+    assert "This month 4,000 a day" in html  # (3 * 6,000 + 6 * 3,000) / 9 days with data
+    assert html.count('class="bar"') + html.count('class="bar partial"') == 9 + 2 + 1
+    assert html.count('class="bar partial"') == 2  # this week and this month, still going
+    assert "<title>27 Jan" not in html  # the missing Sunday is a gap, not a zero bar
+    assert "517" not in html
+
+
+def test_steps_charts_without_data(tmp_path):
+    assert "No steps data yet." in build.steps_charts(tmp_path, TODAY)
+
+
+def test_bars_scale_to_the_tallest_and_label_every_few():
+    svg = build.bars([(f"d{i}", float(i)) for i in range(1, 13)])
+    assert svg.count("<rect") == 12 and "<title>d12: 12</title>" in svg
+    assert 2 <= svg.count("<text") <= 6  # a few labels, not one per bar
