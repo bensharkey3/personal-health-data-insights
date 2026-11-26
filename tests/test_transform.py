@@ -202,3 +202,34 @@ def test_latest_file_per_day_wins(tmp_path, monkeypatch):
 def test_month_without_raw_files_is_skipped(event, monkeypatch):
     monkeypatch.setenv("RAW_BUCKET", "b")
     assert handler.handler(event, None, s3=FakeS3({})) == {}
+
+
+def test_publish_keeps_a_year_of_steps_but_three_months_of_the_rest(tmp_path, monkeypatch):
+    monkeypatch.setenv("RAW_BUCKET", "b")
+    pages = [
+        {"rollupDataPoints": [{"startTime": "2030-01-15T13:59:00Z", "steps": {"countSum": "5"}}]}
+    ]
+    src = write(tmp_path / "steps.jsonl.gz", pages)
+    objects = {}
+    for kind in ("steps", "sleep"):
+        for month in ("2028-06", "2029-06", "2030-01"):  # 19, 7 and 0 months back
+            objects[f"curated/google_health/{kind}/month={month}/data.parquet"] = src
+    s3 = FakeS3(objects, store=tmp_path)
+    mirrored = []
+    monkeypatch.setattr(s3, "download_file", lambda b, key, path: mirrored.append(key))
+    monkeypatch.setattr(handler.dashboard, "build", lambda root, today, at: "page")
+    monkeypatch.setattr(
+        handler,
+        "datetime",
+        type(
+            "D",
+            (handler.datetime,),
+            {"now": classmethod(lambda cls, tz=None: handler.datetime(2030, 1, 20, tzinfo=tz))},
+        ),
+    )
+    handler.publish(s3, "b")
+    assert sorted(k.split("/")[2] + " " + k.split("/")[3] for k in mirrored) == [
+        "sleep month=2030-01",
+        "steps month=2029-06",
+        "steps month=2030-01",
+    ]

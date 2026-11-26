@@ -152,6 +152,7 @@ def tick(s3, lam, bucket: str, at: str) -> dict[str, int]:
 
 
 DASHBOARD_MONTHS = 3  # Google Health months mirrored for the page: 30 shown + 30 for "usual"
+STEPS_MONTHS = 13  # steps need a year, for the monthly chart; one small file a month
 
 
 def publish(s3, bucket: str) -> None:
@@ -160,11 +161,15 @@ def publish(s3, bucket: str) -> None:
     now = datetime.now(UTC)
     today = duckdb.sql(f"SELECT (TIMESTAMPTZ '{now.isoformat()}' AT TIME ZONE '{zone}')::DATE")
     today = today.fetchall()[0][0]
-    oldest = f"month={(today - timedelta(31 * DASHBOARD_MONTHS)):%Y-%m}"
+
+    def oldest(key: str) -> str:
+        months = STEPS_MONTHS if "/steps/" in key else DASHBOARD_MONTHS
+        return f"month={(today - timedelta(31 * months)):%Y-%m}"
+
     keys = [
         k
         for k in all_keys(s3, bucket, "curated/")
-        if k.endswith(".parquet") and ("/month=" not in k or k.split("/")[-2] >= oldest)
+        if k.endswith(".parquet") and ("/month=" not in k or k.split("/")[-2] >= oldest(k))
     ]
     with tempfile.TemporaryDirectory() as tmp:
         for key in keys:  # mirror the layout, so the page's globs see the same paths
