@@ -3,8 +3,8 @@
 Every metric shows its latest value against its usual range, the middle half (25th-75th
 percentile) of the 30 days before it, with a sparkline. The readiness light and illness flag are
 simple rules over last night's values; the step 08b AI summary will sit above them. Device
-metrics without recent data say so instead of failing (D11). The page has no coordinates or place
-names. Standard library only, apart from DuckDB for the queries."""
+metrics without recent data say so instead of failing (D11). The page shows a place name (D35)
+but never coordinates. Standard library only, apart from DuckDB for the queries."""
 
 import html
 from dataclasses import dataclass
@@ -99,7 +99,8 @@ class Status:
         return good is not None and self.side == (-1 if good else 1)
 
 
-def series(root: Path, m: Metric, today: date) -> list[tuple[date, float]]:
+def series(root: Path, m: Metric, today: date, partial: bool = False) -> list[tuple[date, float]]:
+    """Daily values, oldest first. Whole-day totals stop at yesterday unless `partial` is set."""
     sql = m.sql.format(gh=(root / GH).as_posix(), curated=(root / "curated").as_posix())
     try:
         rows = duckdb.sql(
@@ -107,7 +108,7 @@ def series(root: Path, m: Metric, today: date) -> list[tuple[date, float]]:
         ).fetchall()
     except duckdb.IOException:  # no files for this metric yet
         return []
-    return [(d, float(v)) for d, v in rows if m.name not in DAY_TOTALS or d < today]
+    return [(d, float(v)) for d, v in rows if partial or m.name not in DAY_TOTALS or d < today]
 
 
 def status(m: Metric, data: list[tuple[date, float]]) -> Status:
@@ -181,19 +182,23 @@ def card(s: Status, today: date) -> str:
     )
 
 
-def weather(root: Path) -> str:
-    """Yesterday's actuals and today's forecast (D30, D32)."""
+def weather(root: Path) -> tuple[str, str]:
+    """(place, table): yesterday's actuals and today's forecast (D30, D32), and where (D35).
+    A row from a different place than today's (after travelling) names its own place."""
     path = (root / "curated/weather/daily/data.parquet").as_posix()
-    try:
-        rows = duckdb.sql(
-            f"SELECT local_date, is_forecast, temp_min_c, temp_max_c, precipitation_mm,"
-            f" uv_max, pm25_mean, aqi_max FROM '{path}' ORDER BY local_date DESC LIMIT 2"
-        ).fetchall()
+    try:  # by column name, so a table from before places (D35) still shows
+        rel = duckdb.sql(f"SELECT * FROM '{path}' ORDER BY local_date DESC LIMIT 2")
+        rows = [dict(zip(rel.columns, r, strict=True)) for r in rel.fetchall()]
     except duckdb.IOException:
-        return '<p class="none">No weather yet.</p>'
+        return "", '<p class="none">No weather yet.</p>'
+    here = rows[0].get("place") if rows else None
     out = []
-    for d, forecast, lo, hi, rain, uv, pm, aqi in reversed(rows):
-        label = "Today (forecast)" if forecast else f"{d:%a %d %b}"
+    for r in reversed(rows):
+        label = "Today (forecast)" if r["is_forecast"] else f"{r['local_date']:%a %d %b}"
+        if r.get("place") and r["place"] != here:
+            label += f"<br><small>{html.escape(r['place'])}</small>"
+        lo, hi, rain, uv = r["temp_min_c"], r["temp_max_c"], r["precipitation_mm"], r["uv_max"]
+        pm, aqi = r.get("pm25_mean"), r.get("aqi_max")
 
         def f(x, unit="", digits=0):
             return "–" if x is None else f"{x:,.{digits}f}{unit}"
@@ -202,7 +207,7 @@ def weather(root: Path) -> str:
             f"<tr><th>{label}</th><td>{f(lo)}–{f(hi, '°C')}</td><td>{f(rain, ' mm', 1)}</td>"
             f"<td>UV {f(uv)}</td><td>PM2.5 {f(pm, '', 1)}</td><td>AQI {f(aqi)}</td></tr>"
         )
-    return f'<table class="wx">{"".join(out)}</table>'
+    return (html.escape(here) if here else ""), f'<table class="wx">{"".join(out)}</table>'
 
 
 CHART_DAYS, CHART_WEEKS, CHART_MONTHS = 30, 12, 12
@@ -250,7 +255,9 @@ def period_charts(root: Path, today: date, name: str, unit: str = "") -> str:
     """A daily metric by day (totals), and by week and month (average a day over the days with
     data). Only complete days count, so today is left out (#46). Values keep the metric's digits."""
     m = next(m for m in METRICS if m.name == name)
-    days = dict(series(root, m, today))
+    every = dict(series(root, m, today, partial=True))
+    today_so_far = every.pop(today, None)  # still counting: its own lighter bar, nowhere else
+    days = every
     if not days:
         return f'<p class="none">No {name.lower()} data yet.</p>'
 
@@ -263,10 +270,13 @@ def period_charts(root: Path, today: date, name: str, unit: str = "") -> str:
     weeks = averages(lambda d: d - timedelta(d.weekday()))  # ISO weeks start on Monday
     months = averages(lambda d: d.replace(day=1))
     this_week = today - timedelta(today.weekday())
-    daily = [(today - timedelta(n)) for n in range(CHART_DAYS, 0, -1)]
+    daily = [(today - timedelta(n)) for n in range(CHART_DAYS - 1, -1, -1)]  # ends with today
     weekly = [this_week - timedelta(7 * n) for n in range(CHART_WEEKS - 1, -1, -1)]
     monthly = [_month(today, n) for n in range(CHART_MONTHS - 1, -1, -1)]
     fmt = f"{{:,.{m.digits}f}}"
+
+    def shown(value: float | None) -> str:
+        return "–" if value is None else fmt.format(value) + unit
 
     def latest(label: str, value: float | None, per_day: str = "") -> str:
         shown = "–" if value is None else fmt.format(value) + unit
@@ -275,11 +285,15 @@ def period_charts(root: Path, today: date, name: str, unit: str = "") -> str:
     def chart(points, partial: bool = False) -> str:
         return bars(points, partial_last=partial, digits=m.digits, unit=unit)
 
+    yesterday = days.get(today - timedelta(1))
     return "".join(
         [
             '<div class="chart"><h3>By day</h3>',
-            latest("Yesterday", days.get(today - timedelta(1))),
-            chart([(f"{d:%d %b}", days.get(d)) for d in daily]),
+            f"<p>Today so far {shown(today_so_far)} · Yesterday {shown(yesterday)}</p>",
+            chart(
+                [(f"{d:%d %b}", days.get(d, today_so_far if d == today else None)) for d in daily],
+                True,
+            ),
             '</div><div class="chart"><h3>By week, average a day</h3>',
             latest("This week", weeks.get(this_week), " a day"),
             chart([(f"{d:%d %b}", weeks.get(d)) for d in weekly], True),
@@ -298,6 +312,7 @@ def build(root: Path, today: date, built_at: str) -> str:
     colour, reason = readiness(by_name, today)
     flag = illness(by_name)
     template = Template((Path(__file__).parent / "page.html").read_text())
+    place, table = weather(root)
     return template.substitute(
         today=f"{today:%A %d %B %Y}",
         colour=colour,
@@ -309,7 +324,8 @@ def build(root: Path, today: date, built_at: str) -> str:
             else ""
         ),
         cards="".join(card(s, today) for s in statuses),
-        weather=weather(root),
+        place=f" · {place}" if place else "",
+        weather=table,
         steps=period_charts(root, today, "Steps"),
         screen=period_charts(root, today, "Screen time", " h"),
         built_at=html.escape(built_at),

@@ -264,3 +264,73 @@ def test_tick_without_a_time_uses_the_clock(monkeypatch):
     lam = TickLambda()
     handler.handler({"source": "tick"}, None, s3=IngestS3(FIX), lam=lam)
     assert lam.started == ["ingest", "weather"]
+
+
+# --- Place names from Nominatim (D35). Synthetic places only. ---
+
+PLACE_REPLY = {"address": {"suburb": "Testville", "city": "Sample City", "country": "Nowhere"}}
+
+
+def test_place_name_from_the_address():
+    assert weather.place_name(PLACE_REPLY) == "Testville, Sample City"
+    assert weather.place_name({"address": {"town": "Smalltown"}}) == "Smalltown"  # one, not twice
+    assert weather.place_name({"address": {"country": "Nowhere"}}) is None
+    assert weather.place_name({}) is None
+
+
+def place_api(monkeypatch, place) -> list:
+    """Answers weather, air quality and place URLs; place can be an exception to raise."""
+    requests = []
+
+    def urlopen(req, timeout):
+        requests.append(req)
+        if req.full_url.startswith(ingest.PLACE):
+            if isinstance(place, Exception):
+                raise place
+            body = place
+        elif req.full_url.startswith(ingest.AIR):
+            body = air_reply(date(2030, 1, 14), 30)
+        else:
+            body = reply(date(2030, 1, 14), 18)
+        return io.BytesIO(json.dumps(body).encode())
+
+    monkeypatch.setattr(retry, "urlopen", urlopen)
+    monkeypatch.setattr(retry.time, "sleep", lambda s: None)
+    monkeypatch.setenv("RAW_BUCKET", "b")
+    monkeypatch.setenv("TRANSFORM_FUNCTION", "transform")
+    return requests
+
+
+def test_ingest_stores_the_place_reply(monkeypatch, capsys):
+    requests = place_api(monkeypatch, PLACE_REPLY)
+    s3 = IngestS3(FIX)
+    ingest.handler({}, None, s3=s3, lam=FakeLambda())
+    assert sorted(k.split("/")[2] for k in s3.objects) == ["air_quality", "daily", "place"]
+    [req] = [r for r in requests if r.full_url.startswith(ingest.PLACE)]
+    q = params(req.full_url)
+    assert (q["lat"], q["lon"], q["zoom"], q["format"]) == ("-12.35", "123.40", "14", "jsonv2")
+    assert req.get_header("User-agent") == "phdi-weather/1.0"
+    assert "Testville" not in capsys.readouterr().out  # the name is never logged
+
+
+def test_place_outage_doesnt_fail_the_run(monkeypatch):
+    down = urllib.error.HTTPError(ingest.PLACE, 503, "down", Message(), io.BytesIO(b"down"))
+    place_api(monkeypatch, down)
+    s3 = IngestS3(FIX)
+    assert ingest.handler({}, None, s3=s3, lam=FakeLambda()) == {"days": 2}
+    assert sorted(k.split("/")[2] for k in s3.objects) == ["air_quality", "daily"]
+
+
+def test_each_day_gets_the_place_of_its_newest_run(tmp_path):
+    runs = [  # the older run has no place (before D35); the newer one is somewhere else
+        write(tmp_path, "a.jsonl.gz", reply(date(2030, 1, 13), 18.0)),
+        write(tmp_path, "b.jsonl.gz", reply(date(2030, 1, 14), 18.0)),
+    ]
+    out = str(tmp_path / "out.parquet").replace("\\", "/")
+    handler.write(weather.query(runs, [], [None, "O'Town, Sample City"]), out)
+    got = dict(duckdb.sql(f"SELECT local_date, place FROM '{out}'").fetchall())
+    assert got == {
+        date(2030, 1, 13): None,
+        date(2030, 1, 14): "O'Town, Sample City",  # a quote in a name is escaped in the SQL
+        date(2030, 1, 15): "O'Town, Sample City",
+    }

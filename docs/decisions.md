@@ -104,3 +104,6 @@ The page is a few small DuckDB queries over the curated files, so the transform 
 
 ## D34: Dashboard login by a Terraform-made password
 Until Cognito (step 09), a CloudFront Function asks for a password with HTTP Basic auth (user `me`) and compares the SHA-256 of the `Authorization` header with a hash Terraform computes. Terraform generates the random password and keeps it in SSM, where I read it in the console, so setup works from a phone with no laptop. It's also in the private, encrypted Terraform state: a deliberate exception to D15 for this low-stakes, read-only page that Cognito will replace. The browser remembers the login; the CloudFront address is masked in the Actions logs and never output. A new password is a `terraform taint` of the resource.
+
+## D35: Place names from OpenStreetMap Nominatim
+The dashboard names where the weather is for, e.g. "Suburb, City", as the location follows the phone (D29). Open-Meteo has no reverse geocoding, so the 06:00 weather run asks Nominatim once a day: free, no key, and well within its fair-use limit of one request a second. It gets the same rounded coordinates Open-Meteo already does, with a generic User-Agent and no identity. The name lives only in the private bucket and the password-protected page, never the repo or logs. A failed lookup is only logged, since the name is just a label.

@@ -79,9 +79,32 @@ def _unnest(block: str, field: str, typ: str, name: str) -> str:
     return f"unnest(from_json(j->'$.{block}.{field}', '[\"VARCHAR\"]'))::{typ} AS {name}"
 
 
-def query(files: list[str], air_files: list[str] = ()) -> str:
+_LOCALITY = ("suburb", "neighbourhood", "village", "town", "city_district")
+_CITY = ("city", "town", "municipality")
+
+
+def place_name(reply: dict) -> str | None:
+    """'Suburb, City' from a Nominatim reverse-geocode reply (D35), or None without an address."""
+    address = reply.get("address") or {}
+    parts = [
+        next((address[k] for k in keys if address.get(k)), None) for keys in (_LOCALITY, _CITY)
+    ]
+    names = list(dict.fromkeys(p for p in parts if p))  # dict.fromkeys drops a repeat, keeps order
+    return ", ".join(names) or None
+
+
+def _places(places: list[str | None]) -> str:
+    """CTE body: (run, place) for each weather file's position; typed and empty without any."""
+    rows = [f"({i}, '{p.replace(chr(39), chr(39) * 2)}')" for i, p in enumerate(places, 1) if p]
+    if not rows:
+        return "SELECT NULL::INT AS run, NULL::VARCHAR AS place WHERE false"
+    return f"SELECT * FROM (VALUES {', '.join(rows)}) t(run, place)"
+
+
+def query(files: list[str], air_files: list[str] = (), places: list[str | None] = ()) -> str:
     """One row per local date. night_temp_c and night_pm25 are means from 22:00 the evening
-    before to 06:00, the night that ends that morning (sleep belongs to the date it ends, D3)."""
+    before to 06:00, the night that ends that morning (sleep belongs to the date it ends, D3).
+    `places` lines up with `files`: the place name of each run, or None (D35)."""
     daily = ", ".join(
         _unnest("daily", f, t, n) for f, t, n in [("time", "DATE", "local_date")] + _DAILY
     )
@@ -90,10 +113,12 @@ def query(files: list[str], air_files: list[str] = ()) -> str:
         d AS (
             SELECT run, j->>'$.timezone' AS time_zone, {daily} FROM r
         ),
+        p AS ({_places(list(places))}),
         days AS (
-            SELECT * EXCLUDE (run), local_date = max(local_date) OVER (PARTITION BY run)
+            SELECT d.*, p.place, local_date = max(local_date) OVER (PARTITION BY d.run)
                 AS is_forecast  -- the last day of a run is today, still a forecast
-            FROM d QUALIFY row_number() OVER (PARTITION BY local_date ORDER BY run DESC) = 1
+            FROM d LEFT JOIN p USING (run)
+            QUALIFY row_number() OVER (PARTITION BY local_date ORDER BY d.run DESC) = 1
         ),
         h AS (
             SELECT * FROM (
@@ -103,7 +128,7 @@ def query(files: list[str], air_files: list[str] = ()) -> str:
         ),
         n AS ({_night("h", "temp", "night_temp_c")}),
         {_air(list(air_files))}
-        SELECT days.* EXCLUDE (daylight_s), round(daylight_s / 3600, 2) AS daylight_hours,
+        SELECT days.* EXCLUDE (run, daylight_s), round(daylight_s / 3600, 2) AS daylight_hours,
             n.night_temp_c, aq.* EXCLUDE (local_date), an.night_pm25
         FROM days LEFT JOIN n USING (local_date) LEFT JOIN aq USING (local_date)
             LEFT JOIN an USING (local_date)
