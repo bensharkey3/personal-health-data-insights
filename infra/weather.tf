@@ -1,4 +1,4 @@
-# --- Weather (D30): yesterday's actuals and today's forecast from Open-Meteo, started at 05:00
+# --- Weather (D30): yesterday's actuals and today's forecast from Open-Meteo, started at 06:00
 # phone-local by the transform's tick (D31), at the phone's latest location fix (D29) ---
 
 locals {

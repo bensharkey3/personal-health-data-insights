@@ -1,6 +1,6 @@
 """Weather (D30) to a curated daily table.
 
-Each raw file is one 05:00 run: yesterday (actual) and today (forecast) at the phone's location,
+Each raw file is one 06:00 run: yesterday (actual) and today (forecast) at the phone's location,
 in that place's local time. A date's newest run wins, so tomorrow's run replaces today's forecast
 with actuals; `is_forecast` marks a date only a forecast covers so far. Hourly temperatures are
 merged the same way, newest run per hour, for the night's temperature. Air quality (D32) comes as

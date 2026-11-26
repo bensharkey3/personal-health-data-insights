@@ -5,10 +5,10 @@ merge is needed; rebuilding the same month twice gives the same file.
 Event {"days": {"<type>": ["YYYY-MM-DD", ...]}}: from ingestion, rebuilds the months touched.
 Event {"start": "YYYY-MM", "end": "YYYY-MM"}: rebuilds those months for every type.
 Event {"source": "tasker"}: rebuilds the Tasker tables, and the phone locations, from all their
-raw files (D24, D29), plus the latest fix for the 05:00 weather run (D30).
+raw files (D24, D29), plus the latest fix for the 06:00 weather run (D30).
 Steps also read the location lines, for the phone's time zone (D29).
 Event {"source": "weather"}: rebuilds the weather table from every run (newest wins per date).
-Event {"source": "tick"}: every 15 minutes; at 05:00 in the phone's current
+Event {"source": "tick"}: every 15 minutes; at 06:00 in the phone's current
 zone it starts the daily ingest and weather runs (D31). DuckDB has the time zone data for it.
 After every rebuild (not ticks), the dashboard page is rebuilt from the curated files (D33).
 Logs counts only, never values."""
@@ -88,7 +88,7 @@ def rebuild_tasker(s3, bucket: str) -> dict[str, int]:
                 rows[f"tasker/{table}"] = n = write(sql, out)
                 s3.upload_file(out, bucket, f"curated/tasker/{table}/data.parquet")
                 print(f"tasker {table}: {n} rows from {len(keys)} batches")
-            # The phone's latest fix, for the 05:00 weather run (D30); out is the locations table.
+            # The phone's latest fix, for the 06:00 weather run (D30); out is the locations table.
             last = duckdb.sql(
                 f"SELECT lat, lon, time_zone FROM '{out}' ORDER BY local_date DESC LIMIT 1"
             ).fetchall()
@@ -121,7 +121,7 @@ def rebuild_weather(s3, bucket: str) -> dict[str, int]:
     return {"weather/daily": n}
 
 
-DAILY_SLOT = (time(5, 0), time(5, 15))  # one 15-minute tick a day falls in this local window
+DAILY_SLOT = (time(6, 0), time(6, 15))  # one 15-minute tick a day falls in this local window
 LATEST_FIX = "curated/tasker/locations/latest.json"
 
 

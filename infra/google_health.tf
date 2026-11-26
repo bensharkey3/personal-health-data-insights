@@ -148,7 +148,7 @@ resource "aws_cloudwatch_metric_alarm" "google_health_freshness" {
   alarm_actions       = [aws_sns_topic.alerts.arn]
 }
 
-# --- Scheduler role for the 15-minute tick (D31), which starts the daily runs at 05:00 phone-local ---
+# --- Scheduler role for the 15-minute tick (D31), which starts the daily runs at 06:00 phone-local ---
 
 resource "aws_iam_role" "ingest_schedule" {
   name = "${local.prefix}-ingest-schedule"
