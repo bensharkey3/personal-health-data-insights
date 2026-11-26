@@ -8,7 +8,7 @@ Event {"source": "tasker"}: rebuilds the Tasker tables, and the phone locations,
 raw files (D24, D29), plus the latest fix for the 05:00 weather run (D30).
 Steps also read the location lines, for the phone's time zone (D29).
 Event {"source": "weather"}: rebuilds the weather table from every run (newest wins per date).
-Event {"source": "tick", "at": "<UTC time>"}: every 15 minutes; at 05:00 in the phone's current
+Event {"source": "tick"}: every 15 minutes; at 05:00 in the phone's current
 zone it starts the daily ingest and weather runs (D31). DuckDB has the time zone data for it.
 After every rebuild (not ticks), the dashboard page is rebuilt from the curated files (D33).
 Logs counts only, never values."""
@@ -186,7 +186,10 @@ def handler(event: dict, context: object, s3=None, lam=None) -> dict[str, int]:
     s3 = s3 or boto3.client("s3")
     bucket = os.environ["RAW_BUCKET"]
     if event.get("source") == "tick":
-        return tick(s3, lam or boto3.client("lambda"), bucket, event["at"])
+        # The current time: EventBridge Scheduler doesn't fill in its <aws.scheduler.*> placeholders
+        # for a Lambda target. Tests pass "at" to pick the time.
+        at = event.get("at") or datetime.now(UTC).isoformat()
+        return tick(s3, lam or boto3.client("lambda"), bucket, at)
     rows = rebuild(event, s3, bucket)
     publish(s3, bucket)
     return rows

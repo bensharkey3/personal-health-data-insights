@@ -132,8 +132,8 @@ resource "aws_scheduler_schedule" "daily_tick" {
   target {
     arn      = aws_lambda_function.transform.arn
     role_arn = aws_iam_role.ingest_schedule.arn
-    # The scheduled time, not "now", so a tick delayed by a running rebuild keeps its slot.
-    input = jsonencode({ source = "tick", at = "<aws.scheduler.scheduled-time>" })
+    # No time in the input: Scheduler doesn't fill in <aws.scheduler.*> for Lambda targets (D31).
+    input = jsonencode({ source = "tick" })
   }
 }
 

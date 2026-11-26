@@ -247,3 +247,20 @@ def test_weather_without_air_quality_still_builds(tmp_path):
         if r["is_forecast"]
     ]
     assert row["pm25_mean"] is None and row["night_pm25"] is None
+
+
+def test_tick_without_a_time_uses_the_clock(monkeypatch):
+    """The real schedule sends only {"source": "tick"}, so the tick reads the clock."""
+
+    class Clock(handler.datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return handler.datetime(2030, 1, 14, 18, 7, tzinfo=tz)  # 05:07 at UTC+11
+
+    monkeypatch.setattr(handler, "datetime", Clock)
+    monkeypatch.setenv("RAW_BUCKET", "b")
+    monkeypatch.setenv("INGEST_FUNCTION", "ingest")
+    monkeypatch.setenv("WEATHER_FUNCTION", "weather")
+    lam = TickLambda()
+    handler.handler({"source": "tick"}, None, s3=IngestS3(FIX), lam=lam)
+    assert lam.started == ["ingest", "weather"]
