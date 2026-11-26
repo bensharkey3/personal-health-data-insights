@@ -71,6 +71,9 @@ METRICS = [
     Metric("Night temp", "°C", _cur("weather/daily", "night_temp_c", _ACTUAL, False), None, 1),
     Metric("Night PM2.5", "µg/m³", _cur("weather/daily", "night_pm25", _ACTUAL, False), False, 1),
 ]
+# Totals over a whole day: today's is still counting, so they show the last complete day instead.
+# Sleep and the nightly metrics belong to the date they end (D3), so today's value is complete.
+DAY_TOTALS = ("Steps", "Screen time", "Screen after 22:00", "At home", "At the office")
 READINESS = ("Asleep", "HRV", "Resting HR")  # last night's sleep and recovery
 ILLNESS = ("Skin temp", "Resting HR", "Breathing rate")  # all high together: often 1-2 days early
 
@@ -96,7 +99,7 @@ class Status:
         return good is not None and self.side == (-1 if good else 1)
 
 
-def series(root: Path, m: Metric) -> list[tuple[date, float]]:
+def series(root: Path, m: Metric, today: date) -> list[tuple[date, float]]:
     sql = m.sql.format(gh=(root / GH).as_posix(), curated=(root / "curated").as_posix())
     try:
         rows = duckdb.sql(
@@ -104,7 +107,7 @@ def series(root: Path, m: Metric) -> list[tuple[date, float]]:
         ).fetchall()
     except duckdb.IOException:  # no files for this metric yet
         return []
-    return [(d, float(v)) for d, v in rows]
+    return [(d, float(v)) for d, v in rows if m.name not in DAY_TOTALS or d < today]
 
 
 def status(m: Metric, data: list[tuple[date, float]]) -> Status:
@@ -204,7 +207,7 @@ def weather(root: Path) -> str:
 
 def build(root: Path, today: date, built_at: str) -> str:
     """The page for local date `today`, from curated files mirrored under `root`."""
-    statuses = [status(m, series(root, m)) for m in METRICS]
+    statuses = [status(m, series(root, m, today)) for m in METRICS]
     by_name = {s.metric.name: s for s in statuses}
     colour, reason = readiness(by_name, today)
     flag = illness(by_name)

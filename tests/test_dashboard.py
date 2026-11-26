@@ -89,3 +89,14 @@ def test_page_with_phone_and_weather_but_no_device_data(tmp_path):
     assert "No sleep or heart data." in page and "background: var(--grey)" in page
     assert "Screen after 22:00" in page and "Today (forecast)" in page
     assert "Open-Meteo.com" in page and "$" not in page  # every placeholder filled
+
+
+def test_day_totals_skip_todays_unfinished_day(tmp_path):
+    steps = "curated/google_health/steps/month=2030-01/data.parquet"
+    write(
+        tmp_path / steps,
+        "SELECT DATE '2030-01-31' - i::INT AS local_date, 5000 AS steps FROM range(1, 11) t(i)"
+        " UNION ALL SELECT DATE '2030-01-31', 517",  # today so far, at 5am
+    )
+    [(last, value)] = build.series(tmp_path, metric("Steps"), TODAY)[-1:]
+    assert (last, value) == (date(2030, 1, 30), 5000.0)
