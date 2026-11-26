@@ -99,7 +99,8 @@ class Status:
         return good is not None and self.side == (-1 if good else 1)
 
 
-def series(root: Path, m: Metric, today: date) -> list[tuple[date, float]]:
+def series(root: Path, m: Metric, today: date, partial: bool = False) -> list[tuple[date, float]]:
+    """Daily values, oldest first. Whole-day totals stop at yesterday unless `partial` is set."""
     sql = m.sql.format(gh=(root / GH).as_posix(), curated=(root / "curated").as_posix())
     try:
         rows = duckdb.sql(
@@ -107,7 +108,7 @@ def series(root: Path, m: Metric, today: date) -> list[tuple[date, float]]:
         ).fetchall()
     except duckdb.IOException:  # no files for this metric yet
         return []
-    return [(d, float(v)) for d, v in rows if m.name not in DAY_TOTALS or d < today]
+    return [(d, float(v)) for d, v in rows if partial or m.name not in DAY_TOTALS or d < today]
 
 
 def status(m: Metric, data: list[tuple[date, float]]) -> Status:
@@ -250,7 +251,9 @@ def period_charts(root: Path, today: date, name: str, unit: str = "") -> str:
     """A daily metric by day (totals), and by week and month (average a day over the days with
     data). Only complete days count, so today is left out (#46). Values keep the metric's digits."""
     m = next(m for m in METRICS if m.name == name)
-    days = dict(series(root, m, today))
+    every = dict(series(root, m, today, partial=True))
+    today_so_far = every.pop(today, None)  # still counting: its own lighter bar, nowhere else
+    days = every
     if not days:
         return f'<p class="none">No {name.lower()} data yet.</p>'
 
@@ -263,10 +266,13 @@ def period_charts(root: Path, today: date, name: str, unit: str = "") -> str:
     weeks = averages(lambda d: d - timedelta(d.weekday()))  # ISO weeks start on Monday
     months = averages(lambda d: d.replace(day=1))
     this_week = today - timedelta(today.weekday())
-    daily = [(today - timedelta(n)) for n in range(CHART_DAYS, 0, -1)]
+    daily = [(today - timedelta(n)) for n in range(CHART_DAYS - 1, -1, -1)]  # ends with today
     weekly = [this_week - timedelta(7 * n) for n in range(CHART_WEEKS - 1, -1, -1)]
     monthly = [_month(today, n) for n in range(CHART_MONTHS - 1, -1, -1)]
     fmt = f"{{:,.{m.digits}f}}"
+
+    def shown(value: float | None) -> str:
+        return "–" if value is None else fmt.format(value) + unit
 
     def latest(label: str, value: float | None, per_day: str = "") -> str:
         shown = "–" if value is None else fmt.format(value) + unit
@@ -275,11 +281,15 @@ def period_charts(root: Path, today: date, name: str, unit: str = "") -> str:
     def chart(points, partial: bool = False) -> str:
         return bars(points, partial_last=partial, digits=m.digits, unit=unit)
 
+    yesterday = days.get(today - timedelta(1))
     return "".join(
         [
             '<div class="chart"><h3>By day</h3>',
-            latest("Yesterday", days.get(today - timedelta(1))),
-            chart([(f"{d:%d %b}", days.get(d)) for d in daily]),
+            f"<p>Today so far {shown(today_so_far)} · Yesterday {shown(yesterday)}</p>",
+            chart(
+                [(f"{d:%d %b}", days.get(d, today_so_far if d == today else None)) for d in daily],
+                True,
+            ),
             '</div><div class="chart"><h3>By week, average a day</h3>',
             latest("This week", weeks.get(this_week), " a day"),
             chart([(f"{d:%d %b}", weeks.get(d)) for d in weekly], True),
