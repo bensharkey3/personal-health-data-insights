@@ -51,6 +51,8 @@ jobs:
       - run: |
           { echo '### Applied plan'; echo '```'; grep -E '^(Plan:|No changes|  [#+~-])' plan.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
       - run: terraform apply -input=false tfplan
-      - run: | # republish the dashboard with the new code, from existing data (D33); async
+      - run: | # republish the dashboard with the new code (D33), then fetch fresh weather, which rebuilds again; async
           aws lambda invoke --function-name phdi-transform --invocation-type Event \
             --cli-binary-format raw-in-base64-out --payload '{"source": "weather"}' /dev/null
+          aws lambda invoke --function-name phdi-weather --invocation-type Event \
+            --cli-binary-format raw-in-base64-out --payload '{}' /dev/null
