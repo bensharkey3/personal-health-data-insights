@@ -1,4 +1,4 @@
-"""Weather (D30) at the phone's location (D29): the 05:00 ingest, the transform, and the latest fix
+"""Weather (D30) at the phone's location (D29): the 06:00 ingest, the transform, and the latest fix
 the transform keeps for it. Synthetic data and coordinates only."""
 
 import gzip
@@ -190,7 +190,7 @@ def test_tasker_rebuild_keeps_the_latest_fix_for_weather(tmp_path, monkeypatch):
     assert latest == {"lat": -12.34, "lon": 123.45, "time_zone": "Etc/GMT-11"}
 
 
-# --- The 15-minute tick that starts the daily runs at 05:00 phone-local (D31) ---
+# --- The 15-minute tick that starts the daily runs at 06:00 phone-local (D31) ---
 
 
 class TickLambda:
@@ -211,17 +211,17 @@ def tick(monkeypatch, at: str, fix: dict | None) -> list[str]:
 
 
 def test_tick_starts_the_daily_runs_only_at_0500_in_the_phone_zone(monkeypatch):
-    # Etc/GMT-11 is UTC+11, so 05:00 local is 18:00 UTC the day before
-    assert tick(monkeypatch, "2030-01-14T18:00:00Z", FIX) == ["ingest", "weather"]
-    assert tick(monkeypatch, "2030-01-14T17:45:00Z", FIX) == []  # 04:45
-    assert tick(monkeypatch, "2030-01-14T18:15:00Z", FIX) == []  # 05:15
+    # Etc/GMT-11 is UTC+11, so 06:00 local is 19:00 UTC the day before
+    assert tick(monkeypatch, "2030-01-14T19:00:00Z", FIX) == ["ingest", "weather"]
+    assert tick(monkeypatch, "2030-01-14T18:45:00Z", FIX) == []  # 05:45
+    assert tick(monkeypatch, "2030-01-14T19:15:00Z", FIX) == []  # 06:15
 
 
 def test_tick_follows_a_half_hour_zone_and_falls_back_before_the_first_fix(monkeypatch):
-    india = FIX | {"time_zone": "Asia/Kolkata"}  # UTC+05:30: 05:00 local is 23:30 UTC
-    assert tick(monkeypatch, "2030-01-14T23:30:00Z", india) == ["ingest", "weather"]
+    india = FIX | {"time_zone": "Asia/Kolkata"}  # UTC+05:30: 06:00 local is 00:30 UTC
+    assert tick(monkeypatch, "2030-01-15T00:30:00Z", india) == ["ingest", "weather"]
     # no fix yet: TIME_ZONE (Etc/GMT-11 in tests, tests/conftest.py)
-    assert tick(monkeypatch, "2030-01-14T18:00:00Z", None) == ["ingest", "weather"]
+    assert tick(monkeypatch, "2030-01-14T19:00:00Z", None) == ["ingest", "weather"]
 
 
 def test_air_quality_by_day_with_the_night_and_the_newest_run_per_hour(tmp_path):
@@ -247,3 +247,20 @@ def test_weather_without_air_quality_still_builds(tmp_path):
         if r["is_forecast"]
     ]
     assert row["pm25_mean"] is None and row["night_pm25"] is None
+
+
+def test_tick_without_a_time_uses_the_clock(monkeypatch):
+    """The real schedule sends only {"source": "tick"}, so the tick reads the clock."""
+
+    class Clock(handler.datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return handler.datetime(2030, 1, 14, 19, 7, tzinfo=tz)  # 06:07 at UTC+11
+
+    monkeypatch.setattr(handler, "datetime", Clock)
+    monkeypatch.setenv("RAW_BUCKET", "b")
+    monkeypatch.setenv("INGEST_FUNCTION", "ingest")
+    monkeypatch.setenv("WEATHER_FUNCTION", "weather")
+    lam = TickLambda()
+    handler.handler({"source": "tick"}, None, s3=IngestS3(FIX), lam=lam)
+    assert lam.started == ["ingest", "weather"]

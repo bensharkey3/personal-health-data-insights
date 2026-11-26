@@ -1,5 +1,5 @@
 """Lambda: yesterday's actual weather and today's forecast at the phone's location, plus hourly air
-quality for the same days, from Open-Meteo (D30, D32), raw to S3. Runs daily at 05:00 local time.
+quality for the same days, from Open-Meteo (D30, D32), raw to S3. Runs daily at 06:00 local time.
 
 The location is the phone's latest fix (D29), which the transform keeps in
 curated/tasker/locations/latest.json. `past_days=1&forecast_days=1` with `timezone=auto` returns

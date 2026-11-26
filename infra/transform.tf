@@ -121,8 +121,8 @@ resource "aws_lambda_function" "transform" {
   depends_on = [aws_iam_role_policy.transform, aws_cloudwatch_log_group.transform]
 }
 
-# Every 15 minutes in UTC; the transform starts the daily runs when it's 05:00 where the phone is
-# (D31). 15 minutes, not hourly, so zones with :30 or :45 offsets still hit 05:00.
+# Every 15 minutes in UTC; the transform starts the daily runs when it's 06:00 where the phone is
+# (D31). 15 minutes, not hourly, so zones with :30 or :45 offsets still hit 06:00.
 resource "aws_scheduler_schedule" "daily_tick" {
   name                = "${local.prefix}-daily-tick"
   schedule_expression = "cron(0/15 * * * ? *)"
@@ -132,8 +132,8 @@ resource "aws_scheduler_schedule" "daily_tick" {
   target {
     arn      = aws_lambda_function.transform.arn
     role_arn = aws_iam_role.ingest_schedule.arn
-    # The scheduled time, not "now", so a tick delayed by a running rebuild keeps its slot.
-    input = jsonencode({ source = "tick", at = "<aws.scheduler.scheduled-time>" })
+    # No time in the input: Scheduler doesn't fill in <aws.scheduler.*> for Lambda targets (D31).
+    input = jsonencode({ source = "tick" })
   }
 }
 

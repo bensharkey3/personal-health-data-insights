@@ -5,7 +5,7 @@ Single-user serverless pipeline on AWS. Data flows one way, from sources to a da
 ```
 Fitbit (Google Health) ─webhook─┐   (phone steps: daily schedule)
 Tasker (phone) ──function URL───┼─▶ Ingest Lambdas ─▶ S3 raw JSON ─▶ DuckDB transform ─▶ S3 curated Parquet
-Weather (Open-Meteo) ─Lambda────┘   (daily 05:00, at the phone's latest fix)                │
+Weather (Open-Meteo) ─Lambda────┘   (daily 06:00, at the phone's latest fix)                │
                                        Dashboard + AI summary (CloudFront) ◀─ Morning chain ┘
 ```
 
@@ -15,11 +15,11 @@ Weather (Open-Meteo) ─Lambda────┘   (daily 05:00, at the phone's lat
 | --- | --- | --- | --- |
 | Google Health API | Heart rate, HRV, sleep, SpO2, respiratory rate, skin temperature, steps (D13). Old Fitbit history; only steps continue from the phone until a Fitbit Air (D11) | Fitbit: webhook, at most every 3 h; phone steps: daily run (D22) | 02–04 |
 | Tasker (Android) | Screen on/off, home/office Wi-Fi presence, a daily rough location and time zone (D24, D28, D29) | Daily CSV batch, sent when bedtime mode ends, to a Lambda function URL (D25) | 06 |
-| Open-Meteo | Yesterday's actual weather and air quality, today's forecast, and the night's temperature and PM2.5, at the phone's location (D29, D30, D32) | Daily at 05:00 phone-local (D31) | 07 |
+| Open-Meteo | Yesterday's actual weather and air quality, today's forecast, and the night's temperature and PM2.5, at the phone's location (D29, D30, D32) | Daily at 06:00 phone-local (D31) | 07 |
 
 ## Ingestion and storage
 
-- **Ingestion:** a DynamoDB watermark records each type's last run and newest data point. Each run re-fetches from one day before that newest point, capped at 7 days, so data that syncs days late isn't missed (D2, D20). A backfill mode loads a given range of up to 14 days per run. Backoff on 429/5xx, concurrency 1. Runs start from a Google Health webhook for Fitbit device types (at most once per 3 hours) and a daily run at 05:00 phone-local that picks up phone steps (D22, D31). The full-history backfill waits for step 10 (D14).
+- **Ingestion:** a DynamoDB watermark records each type's last run and newest data point. Each run re-fetches from one day before that newest point, capped at 7 days, so data that syncs days late isn't missed (D2, D20). A backfill mode loads a given range of up to 14 days per run. Backoff on 429/5xx, concurrency 1. Runs start from a Google Health webhook for Fitbit device types (at most once per 3 hours) and a daily run at 06:00 phone-local that picks up phone steps (D22, D31). The full-history backfill waits for step 10 (D14).
 - **Raw:** S3 `raw/<source>/<data_type>/dt=YYYY-MM-DD/run=<UTC timestamp>.jsonl.gz`, one gzipped JSON Lines object per type-day and run, holding the API pages as returned. Runs never overwrite, and empty type-days write nothing (D19). `dt` is the local day requested, or the UTC day for steps (D17). Block public access, encryption and versioning on (D1).
 - **Curated:** `curated/<source>/<data_type>/month=YYYY-MM/data.parquet`, one file per type-month with typed columns, `local_date` and the source platform. Each is rebuilt from the latest raw file of every day in the month, so the duplicates that overlapping runs create never reach it (D23). Query with DuckDB (`read_parquet`) on the laptop or in a Lambda; there's no catalog.
 - **Time:** timestamps in UTC plus a `local_date` column; sleep counts toward the date it ends (D3). Where a record has no local time of its own, the phone's zone at that moment applies (D29).
@@ -33,7 +33,7 @@ Weather (Open-Meteo) ─Lambda────┘   (daily 05:00, at the phone's lat
 
 ## Operations
 
-- **Daily runs:** one EventBridge schedule ticks every 15 minutes; the transform starts the ingest and weather runs when it's 05:00 where the phone is (D31).
+- **Daily runs:** one EventBridge schedule ticks every 15 minutes; the transform starts the ingest and weather runs when it's 06:00 where the phone is (D31).
 - **Infra/CI:** Terraform in `infra/`. A one-off CloudShell bootstrap creates the state bucket and GitHub OIDC role; after that, GitHub Actions plans on PRs and applies on every merge to `main`, with no separate approval while in development (D6, D21). One zip per Lambda plus a shared DuckDB layer (D10).
 - **Monitoring:** by email through the `phdi-alerts` SNS topic: a Lambda error alarm, a no-run-in-24h freshness alarm and a $1/month budget alert; 14-day log retention (D7).
 

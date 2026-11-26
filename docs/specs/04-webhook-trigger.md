@@ -9,7 +9,7 @@
 - Shared-secret check on every request: Google's verification POSTs expect 201 with the secret and 401 without it, and notifications with a bad secret get 401 (Google discards them)
 - 3-hour cooldown through a conditional DynamoDB update on `google_health#webhook` in `phdi-watermark`. A skipped notification loses nothing: the next run fetches from the watermark (D20)
 - The receiver starts ingestion asynchronously with `{}` (incremental, all types) and replies 204 at once
-- Ingestion runs with `{}` daily at 05:00 in the phone's current time zone, started by the transform's 15-minute tick (D31)
+- Ingestion runs with `{}` daily at 06:00 in the phone's current time zone, started by the transform's 15-minute tick (D31)
 - The freshness alarm is switched on now that a daily run exists
 
 ## Setup (one laptop session)
@@ -47,7 +47,7 @@ Run by Claude Code on the laptop, which has `aws login`, `gcloud` and `gh` (D18)
 
 - Creating the subscriber succeeds, which shows verification works, and a POST without the secret gets 401
 - A synthetic notification with the secret starts one ingestion run, and a second within 3 hours is skipped
-- The 05:00 run appears in the logs with new steps files in S3
+- The 06:00 run appears in the logs with new steps files in S3
 - Pending a Fitbit Air: a sync results in new raw files within minutes, with no manual step
 
 ## Out of scope

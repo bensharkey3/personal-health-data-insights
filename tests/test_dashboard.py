@@ -96,7 +96,7 @@ def test_day_totals_skip_todays_unfinished_day(tmp_path):
     write(
         tmp_path / steps,
         "SELECT DATE '2030-01-31' - i::INT AS local_date, 5000 AS steps FROM range(1, 11) t(i)"
-        " UNION ALL SELECT DATE '2030-01-31', 517",  # today so far, at 5am
+        " UNION ALL SELECT DATE '2030-01-31', 517",  # today so far, at 6am
     )
     [(last, value)] = build.series(tmp_path, metric("Steps"), TODAY)[-1:]
     assert (last, value) == (date(2030, 1, 30), 5000.0)
