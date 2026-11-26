@@ -124,7 +124,7 @@ def test_steps_charts_by_day_week_and_month(tmp_path):
         " UNION ALL SELECT DATE '2030-01-21' + i::INT, 3000 FROM range(6) t(i)"
         " UNION ALL SELECT DATE '2030-01-31', 517",
     )
-    html = build.steps_charts(tmp_path, TODAY)
+    html = build.period_charts(tmp_path, TODAY, "Steps")
     assert "Yesterday 6,000" in html  # Wed 30
     assert "This week 6,000 a day" in html  # Mon-Wed only: today is still counting
     assert "This month 4,000 a day" in html  # (3 * 6,000 + 6 * 3,000) / 9 days with data
@@ -135,10 +135,22 @@ def test_steps_charts_by_day_week_and_month(tmp_path):
 
 
 def test_steps_charts_without_data(tmp_path):
-    assert "No steps data yet." in build.steps_charts(tmp_path, TODAY)
+    assert "No steps data yet." in build.period_charts(tmp_path, TODAY, "Steps")
 
 
 def test_bars_scale_to_the_tallest_and_label_every_few():
     svg = build.bars([(f"d{i}", float(i)) for i in range(1, 13)])
     assert svg.count("<rect") == 12 and "<title>d12: 12</title>" in svg
     assert 2 <= svg.count("<text") <= 6  # a few labels, not one per bar
+
+
+def test_screen_time_charts_in_hours(tmp_path):
+    write(
+        tmp_path / "curated/tasker/screen_sessions/data.parquet",
+        "SELECT DATE '2030-01-28' + i::INT AS local_date, 90.0 AS minutes, 21 AS start_hour_local"
+        " FROM range(4) t(i)",  # 1.5 h a day, Mon 28 - Thu 31 (today, not counted)
+    )
+    html = build.period_charts(tmp_path, TODAY, "Screen time", " h")
+    assert "Yesterday 1.5 h" in html and "This week 1.5 h a day" in html
+    assert "<title>30 Jan: 1.5 h</title>" in html
+    assert "No screen time data yet." in build.period_charts(tmp_path / "x", TODAY, "Screen time")

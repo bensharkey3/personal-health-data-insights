@@ -205,10 +205,15 @@ def weather(root: Path) -> str:
     return f'<table class="wx">{"".join(out)}</table>'
 
 
-STEPS_DAYS, STEPS_WEEKS, STEPS_MONTHS = 30, 12, 12
+CHART_DAYS, CHART_WEEKS, CHART_MONTHS = 30, 12, 12
 
 
-def bars(points: list[tuple[str, float | None]], partial_last: bool = False) -> str:
+def bars(
+    points: list[tuple[str, float | None]],
+    partial_last: bool = False,
+    digits: int = 0,
+    unit: str = "",
+) -> str:
     """An SVG bar chart, one bar per point (label, value); None leaves a gap. The last bar is
     drawn lighter when its period isn't over yet. Each bar's <title> shows on long-press."""
     width, height, label_h = 300, 80, 12
@@ -224,7 +229,7 @@ def bars(points: list[tuple[str, float | None]], partial_last: bool = False) -> 
             out.append(
                 f'<rect class="{cls}" x="{x + step * 0.1:.1f}" y="{height - label_h - h:.1f}"'
                 f' width="{step * 0.8:.1f}" height="{h:.1f}">'
-                f"<title>{html.escape(label)}: {v:,.0f}</title></rect>"
+                f"<title>{html.escape(label)}: {v:,.{digits}f}{html.escape(unit)}</title></rect>"
             )
         last = len(points) - 1
         if i == last or (i % every == 0 and last - i >= every / 2):  # no crowding at the end
@@ -241,13 +246,13 @@ def _month(d: date, back: int) -> date:
     return date(n // 12, n % 12 + 1, 1)
 
 
-def steps_charts(root: Path, today: date) -> str:
-    """Steps by day (totals), and by week and month (average a day over the days with data).
-    Only complete days count, so today is left out (#46)."""
-    steps = next(m for m in METRICS if m.name == "Steps")
-    days = dict(series(root, steps, today))
+def period_charts(root: Path, today: date, name: str, unit: str = "") -> str:
+    """A daily metric by day (totals), and by week and month (average a day over the days with
+    data). Only complete days count, so today is left out (#46). Values keep the metric's digits."""
+    m = next(m for m in METRICS if m.name == name)
+    days = dict(series(root, m, today))
     if not days:
-        return '<p class="none">No steps data yet.</p>'
+        return f'<p class="none">No {name.lower()} data yet.</p>'
 
     def averages(start_of) -> dict[date, float]:
         groups: dict[date, list[float]] = {}
@@ -258,24 +263,29 @@ def steps_charts(root: Path, today: date) -> str:
     weeks = averages(lambda d: d - timedelta(d.weekday()))  # ISO weeks start on Monday
     months = averages(lambda d: d.replace(day=1))
     this_week = today - timedelta(today.weekday())
-    daily = [(today - timedelta(n)) for n in range(STEPS_DAYS, 0, -1)]
-    weekly = [this_week - timedelta(7 * n) for n in range(STEPS_WEEKS - 1, -1, -1)]
-    monthly = [_month(today, n) for n in range(STEPS_MONTHS - 1, -1, -1)]
+    daily = [(today - timedelta(n)) for n in range(CHART_DAYS, 0, -1)]
+    weekly = [this_week - timedelta(7 * n) for n in range(CHART_WEEKS - 1, -1, -1)]
+    monthly = [_month(today, n) for n in range(CHART_MONTHS - 1, -1, -1)]
+    fmt = f"{{:,.{m.digits}f}}"
 
-    def latest(name: str, value: float | None, unit: str = "") -> str:
-        return f"<p>{name} {'–' if value is None else f'{value:,.0f}'}{unit}</p>"
+    def latest(label: str, value: float | None, per_day: str = "") -> str:
+        shown = "–" if value is None else fmt.format(value) + unit
+        return f"<p>{label} {shown}{per_day}</p>"
+
+    def chart(points, partial: bool = False) -> str:
+        return bars(points, partial_last=partial, digits=m.digits, unit=unit)
 
     return "".join(
         [
             '<div class="chart"><h3>By day</h3>',
             latest("Yesterday", days.get(today - timedelta(1))),
-            bars([(f"{d:%d %b}", days.get(d)) for d in daily]),
+            chart([(f"{d:%d %b}", days.get(d)) for d in daily]),
             '</div><div class="chart"><h3>By week, average a day</h3>',
             latest("This week", weeks.get(this_week), " a day"),
-            bars([(f"{d:%d %b}", weeks.get(d)) for d in weekly], partial_last=True),
+            chart([(f"{d:%d %b}", weeks.get(d)) for d in weekly], True),
             '</div><div class="chart"><h3>By month, average a day</h3>',
             latest("This month", months.get(_month(today, 0)), " a day"),
-            bars([(f"{d:%b}", months.get(d)) for d in monthly], partial_last=True),
+            chart([(f"{d:%b}", months.get(d)) for d in monthly], True),
             "</div>",
         ]
     )
@@ -300,6 +310,7 @@ def build(root: Path, today: date, built_at: str) -> str:
         ),
         cards="".join(card(s, today) for s in statuses),
         weather=weather(root),
-        steps=steps_charts(root, today),
+        steps=period_charts(root, today, "Steps"),
+        screen=period_charts(root, today, "Screen time", " h"),
         built_at=html.escape(built_at),
     )
