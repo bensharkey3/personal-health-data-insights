@@ -90,6 +90,17 @@ resource "aws_cloudfront_distribution" "site" {
     origin_id                = "site"
     origin_access_control_id = aws_cloudfront_origin_access_control.site.id
   }
+  default_cache_behavior {
+    target_origin_id       = "site"
+    viewer_protocol_policy = "redirect-to-https"
+    allowed_methods        = ["GET", "HEAD"]
+    cached_methods         = ["GET", "HEAD"]
+    cache_policy_id        = "4135ea2d-6df8-44a3-9df3-4b5a84be39ad" # AWS managed CachingDisabled
+    function_association {
+      event_type   = "viewer-request"
+      function_arn = aws_cloudfront_function.auth.arn
+    }
+  }
   restrictions {
     geo_restriction {
       restriction_type = "none"
@@ -99,4 +110,3 @@ resource "aws_cloudfront_distribution" "site" {
     cloudfront_default_certificate = true # the default *.cloudfront.net address, no domain
   }
 }
-
