@@ -2,6 +2,14 @@
 
 Single-user serverless pipeline on AWS. Data flows one way, from sources to a daily dashboard. The reasons behind each choice are in [decisions.md](decisions.md) (D1, D2, …). Nothing here may identify my location, AWS account or endpoints.
 
+## Purpose
+
+The point of the project is to make me fitter and healthier, with two goals:
+- **Understand and change my habits.** Show my patterns over time (activity, sleep, screen time, home and office days) and how they relate to each other and to the weather. That way I can see which habits help or hurt, change them, and see whether the change worked.
+- **Catch sickness early.** Flag the early signs of illness, such as resting heart rate, HRV, skin temperature and blood oxygen drifting from my own normal. That gives me a chance to rest and head it off before it takes hold.
+
+Every report should serve one of these goals, by prompting a change or giving a warning, rather than just showing numbers (D36).
+
 ```
 Fitbit (Google Health) ─webhook─┐   (phone steps: daily schedule)
 Tasker (phone) ──function URL───┼─▶ Ingest Lambdas ─▶ S3 raw JSON ─▶ DuckDB transform ─▶ S3 curated Parquet

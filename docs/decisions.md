@@ -107,3 +107,6 @@ Until Cognito (step 09), a CloudFront Function asks for a password with HTTP Bas
 
 ## D35: Place names from OpenStreetMap Nominatim
 The dashboard names where the weather is for, e.g. "Suburb, City", as the location follows the phone (D29). Open-Meteo has no reverse geocoding, so the 06:00 weather run asks Nominatim once a day: free, no key, and well within its fair-use limit of one request a second. It gets the same rounded coordinates Open-Meteo already does, with a generic User-Agent and no identity. The name lives only in the private bucket and the password-protected page, never the repo or logs. A failed lookup is only logged, since the name is just a label.
+
+## D36: Purpose: change habits and catch sickness early
+The project exists to make me fitter and healthier. It should help me understand my habits and how they relate to each other (activity, sleep, screen time, where I am, the weather), so I can change them and see whether the change worked. It should also detect the early signs of sickness from my own baselines, so I can rest and prevent it rather than react once I'm ill. Reports and the AI summary are judged against these goals: each should lead to an action or a warning, not just show data.
