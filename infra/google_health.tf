@@ -16,6 +16,7 @@ data "archive_file" "google_health" {
       "common/auth.py", "common/raw.py", "common/retry.py", "common/watermark.py",
       "ingest/google_health/client.py", "ingest/google_health/handler.py",
       "ingest/google_health/webhook.py", "ingest/tasker/handler.py", "ingest/weather/handler.py",
+      "ingest/garmin/handler.py",
     ]
     content {
       content  = file("${path.module}/../src/${source.value}")

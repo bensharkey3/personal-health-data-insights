@@ -13,7 +13,8 @@ Every report should serve one of these goals, by prompting a change or giving a 
 ```
 Fitbit (Google Health) ─webhook─┐   (phone steps: daily schedule)
 Tasker (phone) ──function URL───┼─▶ Ingest Lambdas ─▶ S3 raw JSON ─▶ DuckDB transform ─▶ S3 curated Parquet
-Weather (Open-Meteo) ─Lambda────┘   (daily 06:00, at the phone's latest fix)                │
+Weather (Open-Meteo) ─Lambda────┤   (daily 06:00, at the phone's latest fix)                │
+Garmin (Personal API) ─Lambda───┘   (activities, daily 06:00)                                │
                                        Dashboard + AI summary (CloudFront) ◀─ Morning chain ┘
 ```
 
@@ -24,6 +25,7 @@ Weather (Open-Meteo) ─Lambda────┘   (daily 06:00, at the phone's lat
 | Google Health API | Heart rate, HRV, sleep, SpO2, respiratory rate, skin temperature, steps (D13). Old Fitbit history; only steps continue from the phone until a Fitbit Air (D11) | Fitbit: webhook, at most every 3 h; phone steps: daily run (D22) | 02–04 |
 | Tasker (Android) | Screen on/off, home/office Wi-Fi presence, a daily rough location and time zone (D24, D28, D29) | Daily CSV batch, sent when bedtime mode ends, to a Lambda function URL (D25) | 06 |
 | Open-Meteo | Yesterday's actual weather and air quality, today's forecast, and the night's temperature and PM2.5, at the phone's location, named via OpenStreetMap Nominatim (D29, D30, D32, D35) | Daily at 06:00 phone-local (D31) | 07 |
+| Garmin Personal API | Activities (type, start, duration, distance, heart rate, calories, training load), the official API for your own data with a key made in Garmin Connect (D39) | Daily at 06:00 phone-local, pulled (D31) | 11 |
 
 ## Ingestion and storage
 

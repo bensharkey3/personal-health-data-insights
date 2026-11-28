@@ -26,7 +26,7 @@ data "archive_file" "transform" {
   output_path = "${path.module}/build/transform.zip"
   dynamic "source" {
     for_each = ["transform/handler.py", "transform/google_health.py", "transform/tasker.py",
-      "transform/locations.py", "transform/weather.py", "dashboard/build.py",
+      "transform/locations.py", "transform/weather.py", "transform/garmin.py", "dashboard/build.py",
       "dashboard/page.html",
     ]
     content {
@@ -46,7 +46,7 @@ resource "aws_iam_role" "transform" {
   assume_role_policy = aws_iam_role.google_health.assume_role_policy
 }
 
-# Least privilege: read raw Google Health and Tasker data, write curated files, log.
+# Least privilege: read raw Google Health, Tasker, weather and Garmin data, write curated files, log.
 resource "aws_iam_role_policy" "transform" {
   role = aws_iam_role.transform.name
   name = local.transform_name
@@ -57,12 +57,12 @@ resource "aws_iam_role_policy" "transform" {
         Effect    = "Allow"
         Action    = "s3:ListBucket"
         Resource  = aws_s3_bucket.raw.arn
-        Condition = { StringLike = { "s3:prefix" = ["raw/google_health/*", "raw/tasker/*", "raw/weather/*", "curated/*"] } }
+        Condition = { StringLike = { "s3:prefix" = ["raw/google_health/*", "raw/tasker/*", "raw/weather/*", "raw/garmin/*", "curated/*"] } }
       },
       {
         Effect   = "Allow"
         Action   = "s3:GetObject"
-        Resource = [for p in ["google_health", "tasker", "weather"] : "${aws_s3_bucket.raw.arn}/raw/${p}/*"]
+        Resource = [for p in ["google_health", "tasker", "weather", "garmin"] : "${aws_s3_bucket.raw.arn}/raw/${p}/*"]
       },
       {
         Effect   = "Allow"
@@ -84,7 +84,7 @@ resource "aws_iam_role_policy" "transform" {
         # The tick starts the daily runs. ARNs from names: both Lambdas also point back here.
         Effect = "Allow"
         Action = "lambda:InvokeFunction"
-        Resource = [for n in [local.google_health_name, local.weather_name] :
+        Resource = [for n in [local.google_health_name, local.weather_name, local.garmin_name] :
         "arn:aws:lambda:ap-southeast-2:${data.aws_caller_identity.current.account_id}:function:${n}"]
       },
       {
@@ -115,6 +115,7 @@ resource "aws_lambda_function" "transform" {
       TIME_ZONE        = var.time_zone # D27
       INGEST_FUNCTION  = local.google_health_name
       WEATHER_FUNCTION = local.weather_name
+      GARMIN_FUNCTION  = local.garmin_name
       SITE_BUCKET      = aws_s3_bucket.site.id
     }
   }
