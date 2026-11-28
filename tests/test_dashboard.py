@@ -89,7 +89,6 @@ def test_page_with_phone_and_weather_but_no_device_data(tmp_path):
     assert "No sleep or heart data." in page and "background: var(--grey)" in page
     assert "Screen after 22:00" in page and "Today (forecast)" in page
     assert "Open-Meteo.com" in page and "$" not in page  # every placeholder filled
-    assert 'href="/refresh"' in page
 
 
 def test_day_totals_skip_todays_unfinished_day(tmp_path):
@@ -126,13 +125,13 @@ def test_steps_charts_by_day_week_and_month(tmp_path):
         " UNION ALL SELECT DATE '2030-01-31', 517",
     )
     html = build.period_charts(tmp_path, TODAY, "Steps")
-    assert "Today so far 517 · Yesterday 6,000" in html  # Thu 31 so far, Wed 30
+    assert "Yesterday 6,000" in html and "Today" not in html  # Wed 30; no intraday (D38)
     assert "This week 6,000 a day" in html  # Mon-Wed only: today is still counting
     assert "This month 4,000 a day" in html  # (3 * 6,000 + 6 * 3,000) / 9 days with data
-    assert html.count('class="bar"') + html.count('class="bar partial"') == 10 + 2 + 1
-    assert html.count('class="bar partial"') == 3  # today, this week and this month: still going
+    assert html.count('class="bar"') + html.count('class="bar partial"') == 9 + 2 + 1
+    assert html.count('class="bar partial"') == 2  # this week and this month: still going
     assert "<title>27 Jan" not in html  # the missing Sunday is a gap, not a zero bar
-    assert "<title>31 Jan: 517</title>" in html  # today only as its own lighter bar
+    assert "<title>31 Jan" not in html  # today isn't shown
 
 
 def test_steps_charts_without_data(tmp_path):
@@ -152,7 +151,7 @@ def test_screen_time_charts_in_hours(tmp_path):
         " FROM range(4) t(i)",  # 1.5 h a day, Mon 28 - Thu 31 (today, not counted)
     )
     html = build.period_charts(tmp_path, TODAY, "Screen time", " h")
-    assert "Today so far 1.5 h · Yesterday 1.5 h" in html and "This week 1.5 h a day" in html
+    assert "Yesterday 1.5 h" in html and "This week 1.5 h a day" in html
     assert "<title>30 Jan: 1.5 h</title>" in html
     assert "No screen time data yet." in build.period_charts(tmp_path / "x", TODAY, "Screen time")
 
@@ -170,47 +169,3 @@ def test_weather_heading_names_the_place_and_a_travelled_day(tmp_path):
     assert place == "Testville, Sample City"
     assert "<small>Elsewhere &lt;b&gt;</small>" in table  # yesterday was elsewhere; escaped
     assert "Weather and air · Testville, Sample City" in build.build(tmp_path, TODAY, "t")
-
-
-class FakeCooldownDDB:
-    """Mimics the conditional update: fails if a trigger is recorded after the cut-off."""
-
-    def __init__(self):
-        self.last = None
-
-    def update_item(self, **kw):
-        from botocore.exceptions import ClientError
-
-        assert kw["Key"] == {"pk": {"S": "dashboard#refresh"}}
-        if self.last and self.last >= kw["ExpressionAttributeValues"][":cut"]["S"]:
-            raise ClientError({"Error": {"Code": "ConditionalCheckFailedException"}}, "UpdateItem")
-        self.last = kw["ExpressionAttributeValues"][":now"]["S"]
-
-
-class FakeLambda:
-    def __init__(self):
-        self.invokes = []
-
-    def invoke(self, **kw):
-        self.invokes.append(kw)
-
-
-def test_refresh_starts_both_runs_then_cools_down(monkeypatch):
-    from dashboard import refresh
-
-    monkeypatch.setenv("WATERMARK_TABLE", "wm")
-    monkeypatch.setenv("INGEST_FUNCTION", "ingest")
-    monkeypatch.setenv("WEATHER_FUNCTION", "weather")
-    ddb, lam = FakeCooldownDDB(), FakeLambda()
-    first = refresh.handler({}, None, ddb=ddb, lam=lam)
-    assert first["statusCode"] == 200 and 'content="90;url=/"' in first["body"]
-    assert [(i["FunctionName"], i["InvocationType"]) for i in lam.invokes] == [
-        ("ingest", "Event"),
-        ("weather", "Event"),
-    ]
-    again = refresh.handler({}, None, ddb=ddb, lam=lam)  # within 5 minutes: nothing started
-    assert len(lam.invokes) == 2 and 'content="5;url=/"' in again["body"]
-    assert again["headers"]["cache-control"] == "no-store"
-    ddb.last = "2000-01-01T00:00:00Z"  # an old refresh no longer blocks
-    refresh.handler({}, None, ddb=ddb, lam=lam)
-    assert len(lam.invokes) == 4

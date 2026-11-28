@@ -69,7 +69,9 @@ jobs:
       - run: echo "::add-mask::$(aws lambda get-function-url-config --function-name phdi-google-health-webhook --query FunctionUrl --output text 2>/dev/null)"
       - run: echo "::add-mask::$(aws lambda get-function-url-config --function-name phdi-tasker --query FunctionUrl --output text 2>/dev/null)"
       - run: echo "::add-mask::$(aws lambda get-function-url-config --function-name phdi-refresh --query FunctionUrl --output text 2>/dev/null)"
-      - run: echo "::add-mask::$(aws lambda get-function-url-config --function-name phdi-refresh --query FunctionUrl --output text 2>/dev/null | sed 's#^https://##; s#/$##')"
+      - run: | # refresh URL (D37), until its destroy is applied: the URL, its host and its ID
+          u=$(aws lambda get-function-url-config --function-name phdi-refresh --query FunctionUrl --output text 2>/dev/null) || exit 0
+          h=${u#https://}; h=${h%/}; echo "::add-mask::$h"; echo "::add-mask::${h%%.*}"
       - run: terraform plan -input=false -no-color -lock-timeout=60s | tee plan.txt
       - run: |
           { echo '### Terraform plan'; echo '```'; grep -E '^(Plan:|No changes|  [#+~-])' plan.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
