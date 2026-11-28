@@ -2,6 +2,14 @@
 
 Single-user serverless pipeline on AWS. Data flows one way, from sources to a daily dashboard. The reasons behind each choice are in [decisions.md](decisions.md) (D1, D2, …). Nothing here may identify my location, AWS account or endpoints.
 
+## Purpose
+
+The point of the project is to make me fitter and healthier, with two goals:
+- **Understand and change my habits.** Show my patterns over time (activity, sleep, screen time, home and office days) and how they relate to each other and to the weather. That way I can see which habits help or hurt, change them, and see whether the change worked.
+- **Catch sickness early.** Flag the early signs of illness, such as resting heart rate, HRV, skin temperature and blood oxygen drifting from my own normal. That gives me a chance to rest and head it off before it takes hold.
+
+Every report should serve one of these goals, by prompting a change or giving a warning, rather than just showing numbers (D36).
+
 ```
 Fitbit (Google Health) ─webhook─┐   (phone steps: daily schedule)
 Tasker (phone) ──function URL───┼─▶ Ingest Lambdas ─▶ S3 raw JSON ─▶ DuckDB transform ─▶ S3 curated Parquet
@@ -28,7 +36,7 @@ Weather (Open-Meteo) ─Lambda────┘   (daily 06:00, at the phone's lat
 ## Processing and serving
 
 - **Transform:** a Lambda where DuckDB flattens raw JSON and rewrites the type-months a run touched. Ingestion invokes it after each run with the days that had data; `{"start", "end"}` months rebuilds by hand. No compaction or other maintenance is needed (D23).
-- **Morning chain:** the dashboard (step 08a) is rebuilt by the transform with each data rebuild (D33). Still to come in 08b/08c, possibly as Step Functions, triggered when a sleep session arrives: merge the day → compare metrics to a 30-day baseline → readiness light and illness flag → Bedrock summary → build static HTML → push the readiness line to my phone. A weekly run turns a few precomputed correlations (e.g. screen time vs sleep) into plain-sentence insights.
+- **Morning chain:** the dashboard (step 08a) is rebuilt by the transform with each data rebuild (D33). Its **Refresh** button calls a small `phdi-refresh` Lambda through CloudFront, behind the same password, which starts the Google Health and weather runs on demand, at most once per 5 minutes (D37). Still to come in 08b/08c, possibly as Step Functions, triggered when a sleep session arrives: merge the day → compare metrics to a 30-day baseline → readiness light and illness flag → Bedrock summary → build static HTML → push the readiness line to my phone. A weekly run turns a few precomputed correlations (e.g. screen time vs sleep) into plain-sentence insights.
 - **Serving:** a static page in a private S3 bucket, rebuilt by the transform after every data rebuild (D33), served by CloudFront from its default address. A CloudFront Function checks a hashed Basic auth password until Cognito login in step 09 (D4, D34).
 
 ## Operations

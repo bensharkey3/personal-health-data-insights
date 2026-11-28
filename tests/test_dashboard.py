@@ -89,6 +89,7 @@ def test_page_with_phone_and_weather_but_no_device_data(tmp_path):
     assert "No sleep or heart data." in page and "background: var(--grey)" in page
     assert "Screen after 22:00" in page and "Today (forecast)" in page
     assert "Open-Meteo.com" in page and "$" not in page  # every placeholder filled
+    assert 'href="/refresh"' in page
 
 
 def test_day_totals_skip_todays_unfinished_day(tmp_path):
@@ -169,3 +170,47 @@ def test_weather_heading_names_the_place_and_a_travelled_day(tmp_path):
     assert place == "Testville, Sample City"
     assert "<small>Elsewhere &lt;b&gt;</small>" in table  # yesterday was elsewhere; escaped
     assert "Weather and air · Testville, Sample City" in build.build(tmp_path, TODAY, "t")
+
+
+class FakeCooldownDDB:
+    """Mimics the conditional update: fails if a trigger is recorded after the cut-off."""
+
+    def __init__(self):
+        self.last = None
+
+    def update_item(self, **kw):
+        from botocore.exceptions import ClientError
+
+        assert kw["Key"] == {"pk": {"S": "dashboard#refresh"}}
+        if self.last and self.last >= kw["ExpressionAttributeValues"][":cut"]["S"]:
+            raise ClientError({"Error": {"Code": "ConditionalCheckFailedException"}}, "UpdateItem")
+        self.last = kw["ExpressionAttributeValues"][":now"]["S"]
+
+
+class FakeLambda:
+    def __init__(self):
+        self.invokes = []
+
+    def invoke(self, **kw):
+        self.invokes.append(kw)
+
+
+def test_refresh_starts_both_runs_then_cools_down(monkeypatch):
+    from dashboard import refresh
+
+    monkeypatch.setenv("WATERMARK_TABLE", "wm")
+    monkeypatch.setenv("INGEST_FUNCTION", "ingest")
+    monkeypatch.setenv("WEATHER_FUNCTION", "weather")
+    ddb, lam = FakeCooldownDDB(), FakeLambda()
+    first = refresh.handler({}, None, ddb=ddb, lam=lam)
+    assert first["statusCode"] == 200 and 'content="90;url=/"' in first["body"]
+    assert [(i["FunctionName"], i["InvocationType"]) for i in lam.invokes] == [
+        ("ingest", "Event"),
+        ("weather", "Event"),
+    ]
+    again = refresh.handler({}, None, ddb=ddb, lam=lam)  # within 5 minutes: nothing started
+    assert len(lam.invokes) == 2 and 'content="5;url=/"' in again["body"]
+    assert again["headers"]["cache-control"] == "no-store"
+    ddb.last = "2000-01-01T00:00:00Z"  # an old refresh no longer blocks
+    refresh.handler({}, None, ddb=ddb, lam=lam)
+    assert len(lam.invokes) == 4
