@@ -8,8 +8,9 @@ Event {"source": "tasker"}: rebuilds the Tasker tables, and the phone locations,
 raw files (D24, D29), plus the latest fix for the 06:00 weather run (D30).
 Steps also read the location lines, for the phone's time zone (D29).
 Event {"source": "weather"}: rebuilds the weather table from every run (newest wins per date).
-Event {"source": "tick"}: every 15 minutes; at 06:00 in the phone's current
-zone it starts the daily ingest and weather runs (D31). DuckDB has the time zone data for it.
+Event {"source": "garmin"}: rebuilds the Garmin activities table from every run (D39).
+Event {"source": "tick"}: every 15 minutes; at 06:00 in the phone's current zone it starts the
+daily ingest, weather and Garmin runs (D31). DuckDB has the time zone data for it.
 After every rebuild (not ticks), the dashboard page is rebuilt from the curated files (D33).
 Logs counts only, never values."""
 
@@ -24,7 +25,7 @@ import boto3
 import duckdb
 
 from dashboard import build as dashboard
-from transform import google_health, locations, tasker, weather
+from transform import garmin, google_health, locations, tasker, weather
 
 SOURCE = "google_health"
 
@@ -134,6 +135,18 @@ def rebuild_weather(s3, bucket: str) -> dict[str, int]:
     return {"weather/daily": n}
 
 
+def rebuild_garmin(s3, bucket: str) -> dict[str, int]:
+    keys = all_keys(s3, bucket, "raw/garmin/activities/")
+    if not keys:
+        return {}
+    with tempfile.TemporaryDirectory() as tmp:
+        out = f"{tmp}/data.parquet"
+        n = write(garmin.query(download(s3, bucket, keys, tmp, "jsonl")), out)
+        s3.upload_file(out, bucket, "curated/garmin/activities/data.parquet")
+    print(f"garmin: {n} activities from {len(keys)} runs")
+    return {"garmin/activities": n}
+
+
 DAILY_SLOT = (time(6, 0), time(6, 15))  # one 15-minute tick a day falls in this local window
 LATEST_FIX = "curated/tasker/locations/latest.json"
 
@@ -158,10 +171,11 @@ def is_daily_slot(at: str, zone: str) -> bool:
 def tick(s3, lam, bucket: str, at: str) -> dict[str, int]:
     if not is_daily_slot(at, phone_zone(s3, bucket)):
         return {}
-    for name in ("INGEST_FUNCTION", "WEATHER_FUNCTION"):  # async: each runs in its own time
+    names = ("INGEST_FUNCTION", "WEATHER_FUNCTION", "GARMIN_FUNCTION")
+    for name in names:  # async: each runs in its own time
         lam.invoke(FunctionName=os.environ[name], InvocationType="Event", Payload=b"{}")
     print("daily runs started")
-    return {"daily_runs": 2}
+    return {"daily_runs": len(names)}
 
 
 DASHBOARD_MONTHS = 3  # Google Health months mirrored for the page: 30 shown + 30 for "usual"
@@ -218,6 +232,8 @@ def rebuild(event: dict, s3, bucket: str) -> dict[str, int]:
         return rebuild_tasker(s3, bucket)
     if event.get("source") == "weather":
         return rebuild_weather(s3, bucket)
+    if event.get("source") == "garmin":
+        return rebuild_garmin(s3, bucket)
     rows = {}
     for kind, todo in months(event).items():
         for month in sorted(todo):

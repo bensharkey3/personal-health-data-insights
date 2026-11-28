@@ -212,16 +212,16 @@ def tick(monkeypatch, at: str, fix: dict | None) -> list[str]:
 
 def test_tick_starts_the_daily_runs_only_at_0500_in_the_phone_zone(monkeypatch):
     # Etc/GMT-11 is UTC+11, so 06:00 local is 19:00 UTC the day before
-    assert tick(monkeypatch, "2030-01-14T19:00:00Z", FIX) == ["ingest", "weather"]
+    assert tick(monkeypatch, "2030-01-14T19:00:00Z", FIX) == ["ingest", "weather", "garmin"]
     assert tick(monkeypatch, "2030-01-14T18:45:00Z", FIX) == []  # 05:45
     assert tick(monkeypatch, "2030-01-14T19:15:00Z", FIX) == []  # 06:15
 
 
 def test_tick_follows_a_half_hour_zone_and_falls_back_before_the_first_fix(monkeypatch):
     india = FIX | {"time_zone": "Asia/Kolkata"}  # UTC+05:30: 06:00 local is 00:30 UTC
-    assert tick(monkeypatch, "2030-01-15T00:30:00Z", india) == ["ingest", "weather"]
+    assert tick(monkeypatch, "2030-01-15T00:30:00Z", india) == ["ingest", "weather", "garmin"]
     # no fix yet: TIME_ZONE (Etc/GMT-11 in tests, tests/conftest.py)
-    assert tick(monkeypatch, "2030-01-14T19:00:00Z", None) == ["ingest", "weather"]
+    assert tick(monkeypatch, "2030-01-14T19:00:00Z", None) == ["ingest", "weather", "garmin"]
 
 
 def test_air_quality_by_day_with_the_night_and_the_newest_run_per_hour(tmp_path):
@@ -263,7 +263,7 @@ def test_tick_without_a_time_uses_the_clock(monkeypatch):
     monkeypatch.setenv("WEATHER_FUNCTION", "weather")
     lam = TickLambda()
     handler.handler({"source": "tick"}, None, s3=IngestS3(FIX), lam=lam)
-    assert lam.started == ["ingest", "weather"]
+    assert lam.started == ["ingest", "weather", "garmin"]
 
 
 # --- Place names from Nominatim (D35). Synthetic places only. ---

@@ -17,11 +17,12 @@ def wait_for(e: urllib.error.HTTPError, attempt: int) -> float:
         return 2**attempt + random.random()
 
 
-def call(req: Request, timeout: int = 60) -> dict:
+def call(req: Request, timeout: int = 60, text: bool = False):
+    """The parsed JSON reply, or the body as text when `text` is set (e.g. a bare token)."""
     for attempt in range(RETRIES + 1):
         try:
             with urlopen(req, timeout=timeout) as resp:
-                return json.load(resp)
+                return resp.read().decode().strip() if text else json.load(resp)
         except urllib.error.HTTPError as e:
             if attempt == RETRIES or not (e.code == 429 or e.code >= 500):
                 raise

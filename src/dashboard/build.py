@@ -297,6 +297,51 @@ def period_charts(root: Path, today: date, name: str, unit: str = "") -> str:
     )
 
 
+ACTIVITIES = "curated/garmin/activities/data.parquet"
+
+
+def training(root: Path, today: date) -> str:
+    """Garmin activities (D39): the last one, sessions this week against the 4-week average,
+    and active minutes a week. Complete days only (D38), so today's sessions wait."""
+    path = root / ACTIVITIES
+    if not path.exists():
+        return '<p class="none">No Garmin activities yet.</p>'
+    rows = duckdb.sql(
+        f"SELECT local_date, type, duration_s, distance_m, avg_hr FROM '{path.as_posix()}'"
+        f" WHERE local_date < DATE '{today}' ORDER BY start_local"
+    ).fetchall()
+    if not rows:
+        return '<p class="none">No Garmin activities yet.</p>'
+    d, kind, secs, metres, hr = rows[-1]
+    parts = [(kind or "activity").replace("_", " ").capitalize()]
+    if metres:
+        parts.append(f"{metres / 1000:.1f} km")
+    if secs:
+        parts.append(f"{secs / 60:.0f} min")
+    if hr:
+        parts.append(f"avg HR {hr:.0f}")
+    this_week = today - timedelta(today.weekday())
+    weeks = [this_week - timedelta(7 * n) for n in range(CHART_WEEKS - 1, -1, -1)]
+    minutes = dict.fromkeys(weeks, 0.0)
+    sessions = dict.fromkeys(weeks, 0)
+    for day, _, s, _, _ in rows:
+        week = day - timedelta(day.weekday())
+        if week in minutes:
+            minutes[week] += (s or 0) / 60
+            sessions[week] += 1
+    usual = sum(sessions[w] for w in weeks[-5:-1]) / 4
+    return "".join(
+        [
+            '<div class="chart"><h3>Last activity</h3>',
+            f"<p>{d:%a %d %b}: {html.escape(', '.join(parts))}</p>",
+            '</div><div class="chart"><h3>Active minutes a week</h3>',
+            f"<p>This week {sessions[this_week]} sessions · usual {usual:.1f}</p>",
+            bars([(f"{w:%d %b}", minutes[w]) for w in weeks], True, unit=" min"),
+            "</div>",
+        ]
+    )
+
+
 def build(root: Path, today: date, built_at: str) -> str:
     """The page for local date `today`, from curated files mirrored under `root`."""
     statuses = [status(m, series(root, m, today)) for m in METRICS]
@@ -320,5 +365,6 @@ def build(root: Path, today: date, built_at: str) -> str:
         weather=table,
         steps=period_charts(root, today, "Steps"),
         screen=period_charts(root, today, "Screen time", " h"),
+        training=training(root, today),
         built_at=html.escape(built_at),
     )
