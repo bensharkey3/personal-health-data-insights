@@ -110,12 +110,3 @@ resource "aws_cloudfront_distribution" "site" {
     cloudfront_default_certificate = true # the default *.cloudfront.net address, no domain
   }
 }
-
-# Kept for one deploy only, unused: Terraform deletes a removed OAC before updating the
-# distribution that still uses it, so it must outlive that update (D38). Remove next PR.
-resource "aws_cloudfront_origin_access_control" "refresh" {
-  name                              = "${local.prefix}-refresh"
-  origin_access_control_origin_type = "lambda"
-  signing_behavior                  = "always"
-  signing_protocol                  = "sigv4"
-}
