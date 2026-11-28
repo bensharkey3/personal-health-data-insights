@@ -36,7 +36,7 @@ Weather (Open-Meteo) ─Lambda────┘   (daily 06:00, at the phone's lat
 ## Processing and serving
 
 - **Transform:** a Lambda where DuckDB flattens raw JSON and rewrites the type-months a run touched. Ingestion invokes it after each run with the days that had data; `{"start", "end"}` months rebuilds by hand. No compaction or other maintenance is needed (D23).
-- **Morning chain:** the dashboard (step 08a) is rebuilt by the transform with each data rebuild (D33). Still to come in 08b/08c, possibly as Step Functions, triggered when a sleep session arrives: merge the day → compare metrics to a 30-day baseline → readiness light and illness flag → Bedrock summary → build static HTML → push the readiness line to my phone. A weekly run turns a few precomputed correlations (e.g. screen time vs sleep) into plain-sentence insights.
+- **Morning chain:** the dashboard (step 08a) is rebuilt by the transform with each data rebuild (D33). Its **Refresh** button calls a small `phdi-refresh` Lambda through CloudFront, behind the same password, which starts the Google Health and weather runs on demand, at most once per 5 minutes (D37). Still to come in 08b/08c, possibly as Step Functions, triggered when a sleep session arrives: merge the day → compare metrics to a 30-day baseline → readiness light and illness flag → Bedrock summary → build static HTML → push the readiness line to my phone. A weekly run turns a few precomputed correlations (e.g. screen time vs sleep) into plain-sentence insights.
 - **Serving:** a static page in a private S3 bucket, rebuilt by the transform after every data rebuild (D33), served by CloudFront from its default address. A CloudFront Function checks a hashed Basic auth password until Cognito login in step 09 (D4, D34).
 
 ## Operations
